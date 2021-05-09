@@ -1,0 +1,111 @@
+---
+title: "project1"
+author: "Sarai Rainey, sis446"
+date: "5/6/2021"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
+```
+
+
+##Introduction
+```{R}
+library(fivethirtyeight)
+library(tidyverse)
+library(dplyr)
+data(hate_crimes)
+data(police_killings)
+```
+*The two datasets that were chosen are “police_killings” and “hate_crimes”. Police_killings contains 467 observations with 34 variables which include: name, age, gender, raceethnicity, month, day, year, streetaddress, city, state, latitude, state_fp, county_fp, tract_ce, geo_id, county_id, nameIsad, lawenforcementagency, cause, armed, pop, share_white, share_hispanic, share_black, p_income, h_income, county_income, comp_income, county_bucket, nat_bucket, pov, urate, and college. This data was collected based on where police have killed Americans in 2015. The database that will be analyzed was created by The Guardian by combining data collected from media outlets, submissions, and open-sourced efforts. Then, The Guardian used their personal data to confirm this information and further collect data on the demographics of the victims of police killings. Hate_crimes contains 51 observations with 13 variables which include: state, state_abbrev, median_house_inc, share_unemp_seas, share_pop_metro, share_pop_hs, share_non_citizen, share_white_poverty, gini_index, share_non_white, share_vote_trump, hate_crimes_per_100k_splc, and avg_hatecrimes_per_100k_fbi. This data was collected after the 2016 election where hate crimes sky-rocketed from 16 per day to 90 per day, based on reportings to the Southern Poverty Law Center. The data is limited considering some hate crimes could have gone unreported. While this dataset was created to compare hate crimes to income inequality, I will be looking for a trend between these hate crimes and police killings between race along with analyzing income as a factor.*
+
+
+## Joining/Merging
+
+```{R}
+fulldata <- full_join(police_killings, hate_crimes, by = c(state = "state_abbrev"))
+fulldata2 <- fulldata %>% select(name, age, gender, raceethnicity, 
+    state, cause, armed, pop, county_income, median_house_inc, 
+    hate_crimes_per_100k_splc, avg_hatecrimes_per_100k_fbi)
+```
+*The data was merged using full_join in order to combine all the data from both data sets. The two datasets were combined using state abbreviations and it was named “state”. The combined dataset was named fulldata and has 517 observations and 46 variables before NAs are removed. Potential issues with combining these datasets is that not all state locations are shared. Only 12 of the most relevant columns were chosen within the datasets, leaving 471 observations of 12 variables.*
+
+##Tidying
+```{R}
+full3 <- fulldata %>% pivot_longer(starts_with("share"), names_to = "race", 
+    values_to = "count", values_drop_na = TRUE)
+```
+*Since I was unable to fid where to use tudying in the Wrangling section, I decided to visualize pivot longer by combining variables that started with share and put their numerical values into their own column, called count. However, this is not the best approach for the data because the information is more dificult to understand.*
+
+##Wrangling
+```{R}
+full2 <- fulldata %>% na.omit %>% rename(`race/ethnicity` = "raceethnicity") %>% 
+    separate("name", into = c("first_name", "last_name"), sep = " ") %>% 
+    select(last_name, "race/ethnicity", age, state, armed) %>% 
+    filter(armed == "No") %>% summarise(mean(age))
+
+full1 <- fulldata %>% na.omit %>% select(gender, raceethnicity, 
+    armed, age, hate_crimes_per_100k_splc, median_house_inc) %>% 
+    arrange(desc(age)) %>% mutate(hate_income = (hate_crimes_per_100k_splc/median_house_inc))
+
+fulldata %>% group_by(age) %>% summarise(mean(pop))
+fulldata %>% group_by(gender) %>% summarise(n_distinct(cause))
+fulldata %>% na.omit %>% group_by(raceethnicity) %>% summarise(median(age))
+fulldata %>% group_by(state) %>% summarise(n_distinct(age))
+fulldata %>% group_by(cause) %>% summarise(n_distinct(raceethnicity))
+fulldata %>% group_by(armed) %>% summarise(var(median_house_inc))
+fulldata %>% group_by(pop) %>% summarise(median(hate_crimes_per_100k_splc))
+fulldata %>% group_by(county_income) %>% summarise(median(share_vote_trump))
+fulldata %>% group_by(hate_crimes_per_100k_splc) %>% summarise(max(pop))
+fulldata %>% group_by(hate_crimes_per_100k_splc) %>% summarise(share_vote_trump)
+```
+*The dataset “full2” changed the initial variable “raceethnicity” into “race/ethnicity” so it was more appealing when reading the full dataset. Next, name was split into first and last so the data could be looked at by last names instead. In order to see the information of people not armed, I filtered for this and summarized to find the mean age of people unarmed who were killed byy police, which gave a value of 39. The new dataset “full1” looks specifically at seven columns: gender, race/ethnicity, age, state, hate crimes within the area, median household income, and if the victim was armed. The data was arranged from youngest to oldest of the victims and then mutate was used to analyzed the mean hate crimes based on house hold income. The data showed that the oldest peron killed was an 87 year old white male who was armed. He also came from an area of higher hate crimes based on the median income of his state. The summarize statistics were used to analyze various variables based on grouping and summary functions. The three most interesting functions will be discussed based on grouping of the race/ethnicity of the victims, their ages, and the hate crimes within populatiom size. Based on the ethnicity/race grouping of the victims, summary stats looked at the median age. The youngest group of te race for the victims was 27 and it belonged to the Native Americans. The oldest race group, however, belonged to white people and was at 39 years old. With grouping on victim ages, 16 year old victims were found in an average population size of 4503. When grouping by hate crimes recorded, summary stats were run on people who voted for Trump by state. The data showed increasing hate crimes with increased voting for Trump, however, there are many missing variables within hate crimes to form valid conclusions.*
+
+##Visualizing
+```{R}
+fulldata2 %>% na.omit %>% select_if(is.numeric) %>% cor %>% as.data.frame %>% 
+    rownames_to_column %>% pivot_longer(-1) %>% ggplot(aes(rowname, 
+    name, fill = value)) + geom_tile() + geom_text(aes(label = round(value, 
+    2))) + xlab("") + ylab("") + coord_fixed() + theme(axis.text.x = element_text(angle = 90, 
+    hjust = 1)) + coord_fixed()
+ggplot(fulldata, aes(hate_crimes_per_100k_splc, median_house_inc, 
+    color = state)) + geom_point(size = 3) + geom_line(aes(group = state)) + 
+    theme(legend.position = "right") + theme_classic() + ggtitle("Hate Crimes Based on Household Income") + 
+    ylab("Median Income") + xlab("Hate Crimes") + scale_x_continuous(n.breaks = 10) + 
+    scale_y_continuous(n.breaks = 10) + stat_summary(fun = mean, 
+    geom = "line")
+fulldata %>% na.omit %>% ggplot(aes(pop, age, group = raceethnicity, 
+    fill = raceethnicity)) + geom_boxplot() + theme(legend.position = "right") + 
+    ggtitle("Victim Ages Based on Race/Ethnicty")
+
+```
+*When looking at the correlation map, the strongest correlation is apparent at median house income and county income, with a correlation of 0.56. this could be a strong correlation because both variables focus on income within a state. The weakest correlation is found at population and and median house income, with a correlation of -0.01. Since population is not averaged while the house income is, it could be a potential factor as to why the variables are the furthest from related. The graph illustrates the relationship of hate crimes to median house come. Based on the plots, there seems to be a positive correlation between the hate crimes and median income. This relationship differs from the expected hypothesis of increased hate crimes with increased poverty. Each plot is labeled by state, however, there is no obvious trend between location of states to hate crimes and median income within the states. The boxplot illustrates the total count of the population to that of the age of people murdered by cops. As expected, the measure of the population that identified as white is the largest, considering demographics. The smallest apparent boxplot is Native American, which also corresponds properly with race measurements within the US. The boxplots show a close relationship of shared age within the different races that have been murdered by cops, however the black and white population have the most outliers of older populations.*
+
+##Dimensionality Reduction
+```{R}
+library(cluster)
+library(plotly)
+fulldata3 <- fulldata %>% na.omit
+fulldata4 <- fulldata3 %>% dplyr::select(share_vote_trump, share_non_white, 
+    share_white_poverty, hate_crimes_per_100k_splc)
+sil_width <- vector()
+for (i in 2:10) {
+    pam_fit <- pam(fulldata4, k = i)
+    sil_width[i] <- pam_fit$silinfo$avg.width
+}
+ggplot() + geom_line(aes(x = 1:10, y = sil_width)) + scale_x_continuous(name = "k", 
+    breaks = 1:10)
+kclust <- fulldata4 %>% kmeans(5)
+kclust
+pam <- fulldata4 %>% pam(k = 5)
+pam
+plot(pam, which = 2)
+pam5 <- fulldata3 %>% mutate(cluster = as.factor(pam$clustering))
+pam5 %>% plot_ly(x = ~share_vote_trump, y = ~share_non_white, 
+    z = ~hate_crimes_per_100k_splc, color = ~cluster, type = "scatter3d", 
+    mode = "markers", symbol = ~raceethnicity)
+```
+*Since the clusters measured variables collected as fractions, the clusters had similar scaled vairables. The cluster sizes were 73, 27, 100, 117, and 83. The cluster number was 5 because between 2-6, 5 gave a sum of squares of 79.5%. While values from 7-10 were increasing, I chose 5 in order to keep a small amount of clusters while still having a decent sum of squares. The average silhouette width is weak, found at 0.47. The graph shows the clusters in a 3D shape to show the relationship between the four variables better. It is apparent that the darker green points are further at the bottom while the orange are further at the top of the graph, but with a smaller portion of non white population size.*
+

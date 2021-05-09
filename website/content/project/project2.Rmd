@@ -1,0 +1,230 @@
+---
+title: "Project 2"
+author: "Sarai Rainey, sis446"
+date: "5/02/2021"
+output: html_document
+---
+```{r}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
+```
+
+##0)Introduction
+
+```{R}
+library(fivethirtyeight)
+library(tidyverse)
+library(dplyr)
+library(lmtest)
+library(plotROC) 
+data(hate_crimes)
+data(police_killings)
+fulldata <- full_join(police_killings,hate_crimes,by=c("state"="state_abbrev"))
+fulldata <- fulldata %>% select(age,gender, raceethnicity, state, cause, armed, pop, county_income,  hate_crimes_per_100k_splc, share_vote_trump) %>% na.omit
+```
+
+*The merged dataset that is being used was chosen from the two datasets used in the first experiment, which are “police_killings” and “hate_crimes”. The selected variables include age of the victims of police killings,their gender, race/ethnicity, the state they were murdered in, if they were armed, their cause of death, the population size of the State during 2015, the county's income at that time, hate crimes found within given areas of the state, and people who voted for Trump within certain population sizes in 2015. This data was collected based on where police have killed Americans in 2015. The dataset currently contains 471 bservations with 10 variables. There are five numeric variables and five categorical variables.*
+
+
+
+## 1)MANOVA
+
+```{R}
+man <- manova(cbind(pop, county_income, hate_crimes_per_100k_splc,share_vote_trump)~raceethnicity, data=fulldata) %>% na.omit
+summary(man)
+summary.aov(man)
+fulldata%>%group_by(raceethnicity)%>%summarize(mean(pop),mean(county_income), mean(hate_crimes_per_100k_splc), mean(share_vote_trump))
+pairwise.t.test(fulldata$pop, fulldata$raceethnicity, p.adj="none") 
+pairwise.t.test(fulldata$county_income, fulldata$raceethnicity, p.adj="none") 
+pairwise.t.test(fulldata$hate_crimes_per_100k_splc, fulldata$raceethnicity, p.adj="none") 
+pairwise.t.test(fulldata$share_vote_trump, fulldata$raceethnicity, p.adj="none") 
+.95^21 #type 1 error(find # tests) or is it 1-.95^21
+.05/21 #bonferroni
+
+```
+
+*After running the MANOVA, the p-value is less than 0.05, making it significant. Next, one way ANOVAs were conducted to identify which mean values were significant for a given group. After running the ANOVA, the significant mean values came from the following groups: population, race/ethnicity, and the share of the population that voted for Trump. Hate crimes were not significant because the p-value was greater than 0.05. The tests included 1 MANOVA, 4 AVONAS, and 16 t-tests with a total of 21 tests. This gave a type 1 error rate of 0.34. With bonferroni, the new value is 0.00238. This means only the share of the population that voted for Trump is significant when looking at race/ethnicity in the ANOVA. The MANOVA remained significant. The MANOVA assumptions would not be met. A few examples of the assumptions that are violated include homogeneity within the groups, outliers, and multicollinearity. The groups are not evenly separated, for example, race/ethnicity has a higher number of white people measured. Homogeneity is violated because there is not equal variance within the groups measured. Multicollinearity is also violated because some correlations are present, with race/ethnicity, Trump votes also increase with specific race groups measured.*
+ 
+##2)Correlation
+ 
+```{R}
+ library("ggpubr")
+ggscatter(fulldata, x = "hate_crimes_per_100k_splc", y = "share_vote_trump", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Hate Crimes (per 100k)", ylab = "Trump Votes")
+vote_hate <- cor.test(fulldata$hate_crimes_per_100k_splc, fulldata$share_vote_trump, 
+                    method = "pearson")
+vote_hate
+```
+*Null hypothesis: There is no correlation between hate crimes within a population size and Trump votes within a population size. Alternative hypothesis: There is a correlation between hate crimes and Trump votes within a population. After running the correlation test, there was a p value less than 0.05, meaning it was significant. This means we can accept the alternative hypothesis. However, since the correlation test is -.458, it is a weak interaction.*
+
+##3)Linear Regression 
+
+```{R}
+fulldata$share_vote_trump_c <- fulldata$share_vote_trump - mean(fulldata$share_vote_trump, na.rm=T)
+fulldata$hate_crimes_per_100k_splc_c <- fulldata$hate_crimes_per_100k_splc - 
+  mean(fulldata$hate_crimes_per_100k_splc, na.rm=T)
+fit<-lm(hate_crimes_per_100k_splc_c~share_vote_trump_c+raceethnicity, data=fulldata)
+summary(fit)
+fit2<-lm(hate_crimes_per_100k_splc_c~share_vote_trump_c*raceethnicity, data=fulldata)
+summary(fit2)
+fulldata%>%ggplot(aes(share_vote_trump_c,hate_crimes_per_100k_splc))+geom_point()+geom_smooth(method = 'lm',se=F)
+summary(fit)$r.sq
+summary(fit2)$r.sq
+resids<-fit$residuals 
+fitvals<-fit$fitted.values
+ggplot()+geom_point(aes(fitvals,resids))+geom_hline(yintercept=0, color='red') #no interaction, linearity/homoske.
+hist(resids) #no interaction, normality
+resids2<-fit2$residuals 
+fitvals2<-fit2$fitted.values
+ggplot()+geom_point(aes(fitvals2,resids2))+geom_hline(yintercept=0, color='red') #interaction, linearity/homoske.
+hist(resids2) #interaction, normality
+library(sandwich); library(lmtest)
+coeftest(fit, vcov=vcovHC(fit))
+coeftest(fit2, vcov=vcovHC(fit2))
+
+```
+
+* With no interaction between race/ethnicity and the share of the population that voted for Trump, the intercept represents the Asian population that had reported hate crimes. The predicted hate crimes within a population for the Asian population  is -0.015. Hate crimes associated with Trump votes for the Asian population: for every 1-unit increase in hate crimes, predicted Trump votes go down 0.75 for this group. The Black population with zero Trump votes have predicted hate crimes that are 0.005 higher than the Asian population with zero hate crimes. The Hispanic population with zero Trump votes have predicted hate crimes that are 0.029 lower than the Asian population with zero hate crimes. The Native American population with zero Trump votes have predicted hate crimes that are 0.075 higher than the Asian population with zero hate crimes. The White population with zero Trump votes have predicted hate crimes that are 0.032 higher than the Asian population with zero hate crimes. The SE values did not change after robust standard errors were used.
+With interactions between race/ethnicity and Trump votes, the following interactions were reported. The predicted hate crimes within a population for the Asian population  is 0.0333. Hate crimes associated with Trump votes for the Asian population: for every 1-unit increase in hate crimes, predicted Trump votes go up 0.09 for this group. The Black population with zero Trump votes have predicted hate crimes that are 0.043 lower than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Black population is 0.999 lower than the Asian population. The Hispanic population with zero Trump votes have predicted hate crimes that are 0.061 lower than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Hispanic population is 0.48 lower than the Asian population. The Native American population with zero Trump votes have predicted hate crimes that are 0.029 higher than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Native American population is 3.74 lower than the Asian population.The White population with zero Trump votes have predicted hate crimes that are 0.016 lower than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the White population is 0.84 lower than the Asian population. The r^2 value without interaction is 0.23 and with interaction is 0.25 or 25% meaning only 25% of the variation is explained by the regression line. After testing the assumptions, both with and without interaction models failed the assumption tests of linearity, homoskedsaticity, and normality failed. When using robust standard errors, the SE values did not change for interactions either.*
+
+##4)Bootstrapping
+
+```{R}
+fit3<-lm(hate_crimes_per_100k_splc_c~share_vote_trump_c*raceethnicity, data=fulldata)
+summary(fit3)
+resids3<-fit3$residuals #save residuals
+fitted<-fit3$fitted.values #save yhats
+resid_resamp<-replicate(5000,{
+new_resids<-sample(resids3,replace=TRUE) #resample resids w/ replacement
+fulldata$hate_crimes_per_100k_splc_c<-fitted+new_resids #add new resids to yhats to get new "data"
+fit<-lm(hate_crimes_per_100k_splc_c~share_vote_trump_c*raceethnicity, data=fulldata) #refit model
+coef(fit) #save coefficient estimates (b0, b1, etc)
+})
+resid_resamp%>%t%>%as.data.frame%>%summarize_all(sd)
+```
+
+*With interactions between race/ethnicity and Trump votes, the following interactions were reported using bootstrapping. The predicted hate crimes within a population for the Asian population  is 0.059. Hate crimes associated with Trump votes for the Asian population: for every 1-unit increase in hate crimes, predicted Trump votes go up 0.61 for this group. The Black population with zero Trump votes have predicted hate crimes that are 0.06 higher than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Black population is 0.62 higher than the Asian population. The Hispanic population with zero Trump votes have predicted hate crimes that are 0.061 higher than the Asian population with zero hate crimes. This value remained unchanged like that of the original SE values found.Slope of Trump votes on hate crimes for the Hispanic population is 0.63 higher than the Asian population. The Native American population with zero Trump votes have predicted hate crimes that are 0.09 higher than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Native American population is 1.32 higher than the Asian population.The White population with zero Trump votes have predicted hate crimes that are 0.06 higher than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the White population is 0.61 higher than the Asian population. The Hispanic population was the only SE than remained unchanged when only looking at race and hate crimes.*
+ 
+##5)Binary Variable
+ 
+```{R}
+data<-fulldata%>%mutate(y=ifelse(armed=="No",1,0))
+fit4<-glm(y~raceethnicity*share_vote_trump_c, data=data, family="binomial")
+coeftest(fit4)
+exp(coef(fit4))
+probs<-predict(fit4,type="response") 
+table(predict=as.numeric(probs>.5),truth=data$y)%>%addmargins
+1/98 #TPR
+(336+1)/435 #accuracy
+336/337 #TNR
+1/2 #PPV
+data$logit<-predict(fit4,type="link") 
+data %>% mutate(y=as.factor(y)) %>% ggplot() + geom_density(aes(logit, fill=y)) +
+  theme(legend.position=c(.85,.85))+geom_vline(xintercept=0)+xlab("logit (log-odds)")+
+  geom_rug(aes(logit,color=y))+
+  geom_text(x=-5,y=.07,label="TN = 431")+
+  geom_text(x=-1.75,y=.008,label="FN = 19")+
+  geom_text(x=1,y=.006,label="FP = 13")+
+  geom_text(x=5,y=.04,label="TP = 220")
+ROCplot<-ggplot(data)+geom_roc(aes(d=y,m=probs))
+ROCplot
+calc_auc(ROCplot)
+```
+ 
+ *When analyzing the odds ratio with interaction between race/ethnicity and the share of the population that voted for Trump, these were the following results. The odds ratio for the Asian population is  5.47e-01. The odds ratio for the Latino population with the Trump interaction is  3.81e-06, and alone is 4.37e-01. The odds ratio for the White population with the Trump interaction is  3.55e-05, and alone is 4.98e-01. The odds ratio for the Black population with the Trump interaction is  4.07e-06, and alone is 5.77e-01. The odds ratio for the Native American population with the Trump interaction is  1.59e-01, and alone is 5.41e-01. The odds ratio for the population that voted for Trump alone is 6.39e05. With the interaction, the population with the highest odds ratio that voted for Trump along with the murder rate in 2015 of different populations is the Native American population while the lowest rate is the Black population. After running the confusion matrix, there was a very low sensitivity rate of 1%, a specificity rate of 99.7%, and a precision of 50%. The accuracy is 77%. With an AUC of 0.58, the curve is bad! *
+ 
+ #6) Regression with All Variables
+```{R}
+fit6<-glm(y~., data=data, family="binomial")
+coeftest(fit6)
+exp(coef(fit6))
+summary(fit6)
+prob<-predict(fit6,type="response") 
+class_diag <- function(probs,truth){
+  
+  #CONFUSION MATRIX: CALCULATE ACCURACY, TPR, TNR, PPV
+  tab<-table(factor(probs>.5,levels=c("FALSE","TRUE")),truth)
+  acc=sum(diag(tab))/sum(tab)
+  sens=tab[2,2]/colSums(tab)[2]
+  spec=tab[1,1]/colSums(tab)[1]
+  ppv=tab[2,2]/rowSums(tab)[2]
+
+  if(is.numeric(truth)==FALSE & is.logical(truth)==FALSE) truth<-as.numeric(truth)-1
+  
+  #CALCULATE EXACT AUC
+  ord<-order(probs, decreasing=TRUE)
+  probs <- probs[ord]; truth <- truth[ord]
+  
+  TPR=cumsum(truth)/max(1,sum(truth)) 
+  FPR=cumsum(!truth)/max(1,sum(!truth))
+  
+  dup<-c(probs[-1]>=probs[-length(probs)], FALSE)
+  TPR<-c(0,TPR[!dup],1); FPR<-c(0,FPR[!dup],1)
+  
+  n <- length(TPR)
+  auc<- sum( ((TPR[-1]+TPR[-n])/2) * (FPR[-1]-FPR[-n]) )
+
+  data.frame(acc,sens,spec,ppv,auc)
+}
+class_diag(probs,data$y)
+
+set.seed(1234)
+k=10
+data<-data[sample(nrow(data)),] #randomly order rows
+folds<-cut(seq(1:nrow(data)),breaks=k,labels=F) #create folds
+diags<-NULL
+for(i in 1:k){
+  ## Create training and test sets
+  train<-data[folds!=i,] 
+  test<-data[folds==i,]
+  
+  truth<-test$y ## Truth labels for fold i
+  
+  ## Train model on training set (all but fold i)
+  fit<-glm(y~.,data=data,family="binomial")
+  
+  ## Test model on test set (fold i) 
+  probs<-predict(fit,newdata = test,type="response")
+  
+  ## Get diagnostics for fold i
+  diags<-rbind(diags,class_diag(probs,truth))
+}
+summarize_all(diags,mean)
+
+library(glmnet)
+y<-as.matrix(data$y) #grab response
+x<-model.matrix(y~.,data=data)[,-1] #grab predictors
+x<-scale(x)
+head(x)
+cv<-cv.glmnet(x,y,family="binomial")
+lasso<-glmnet(x,y,family="binomial",lambda=cv$lambda.1se)
+coef(lasso)
+lasso_dat <- data %>% mutate(notarmed= ifelse(armed=="No", 1, 0))
+
+k=10
+data<-lasso_dat[sample(nrow(data)),] #randomly order rows
+folds<-cut(seq(1:nrow(data)),breaks=k,labels=F) #create folds
+
+diags<-NULL
+for(i in 1:k){
+  ## Create training and test sets
+  train<-data[folds!=i,] 
+  test<-data[folds==i,]
+  
+  truth<-test$y ## Truth labels for fold i
+  
+  ## Train model on training set (all but fold i)
+  fit<-glm(y~notarmed, data=lasso_dat,family="binomial")
+  
+  ## Test model on test set (fold i) 
+  probs<-predict(fit,newdata = test,type="response")
+  
+  ## Get diagnostics for fold i
+  diags<-rbind(diags,class_diag(probs,truth))
+}
+summarize_all(diags,mean)
+```
+ *Using all the variables present in the dataset, the accuracy is 0.77, sensitivity is 0.01, specificity is 0.997, precision is 0.5, and AUC is 0.58, which is bad. After running the regression on 10-fold, every value came out to 1, including accuracy, sensitivity, specificity, precision, and AUC. After running lasso, only one variable was a non zero, armedNo with a value of 6.177. *
+ 

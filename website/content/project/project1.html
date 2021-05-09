@@ -1,0 +1,278 @@
+---
+title: "project1"
+author: "Sarai Rainey, sis446"
+date: "5/6/2021"
+output: html_document
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/plotly-binding/plotly.js"></script>
+<script src="/rmarkdown-libs/typedarray/typedarray.min.js"></script>
+<script src="/rmarkdown-libs/jquery/jquery.min.js"></script>
+<link href="/rmarkdown-libs/crosstalk/css/crosstalk.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/crosstalk/js/crosstalk.min.js"></script>
+<link href="/rmarkdown-libs/plotly-htmlwidgets-css/plotly-htmlwidgets.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/plotly-main/plotly-latest.min.js"></script>
+
+
+<pre class="r"><code>knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = &quot;center&quot;, warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))</code></pre>
+<p>##Introduction</p>
+<pre class="r"><code>library(fivethirtyeight)
+library(tidyverse)
+library(dplyr)
+data(hate_crimes)
+data(police_killings)</code></pre>
+<p><em>The two datasets that were chosen are “police_killings” and “hate_crimes”. Police_killings contains 467 observations with 34 variables which include: name, age, gender, raceethnicity, month, day, year, streetaddress, city, state, latitude, state_fp, county_fp, tract_ce, geo_id, county_id, nameIsad, lawenforcementagency, cause, armed, pop, share_white, share_hispanic, share_black, p_income, h_income, county_income, comp_income, county_bucket, nat_bucket, pov, urate, and college. This data was collected based on where police have killed Americans in 2015. The database that will be analyzed was created by The Guardian by combining data collected from media outlets, submissions, and open-sourced efforts. Then, The Guardian used their personal data to confirm this information and further collect data on the demographics of the victims of police killings. Hate_crimes contains 51 observations with 13 variables which include: state, state_abbrev, median_house_inc, share_unemp_seas, share_pop_metro, share_pop_hs, share_non_citizen, share_white_poverty, gini_index, share_non_white, share_vote_trump, hate_crimes_per_100k_splc, and avg_hatecrimes_per_100k_fbi. This data was collected after the 2016 election where hate crimes sky-rocketed from 16 per day to 90 per day, based on reportings to the Southern Poverty Law Center. The data is limited considering some hate crimes could have gone unreported. While this dataset was created to compare hate crimes to income inequality, I will be looking for a trend between these hate crimes and police killings between race along with analyzing income as a factor.</em></p>
+<div id="joiningmerging" class="section level2">
+<h2>Joining/Merging</h2>
+<pre class="r"><code>fulldata &lt;- full_join(police_killings, hate_crimes, by = c(state = &quot;state_abbrev&quot;))
+fulldata2 &lt;- fulldata %&gt;% select(name, age, gender, raceethnicity, 
+    state, cause, armed, pop, county_income, median_house_inc, 
+    hate_crimes_per_100k_splc, avg_hatecrimes_per_100k_fbi)</code></pre>
+<p><em>The data was merged using full_join in order to combine all the data from both data sets. The two datasets were combined using state abbreviations and it was named “state”. The combined dataset was named fulldata and has 517 observations and 46 variables before NAs are removed. Potential issues with combining these datasets is that not all state locations are shared. Only 12 of the most relevant columns were chosen within the datasets, leaving 471 observations of 12 variables.</em></p>
+<p>##Tidying</p>
+<pre class="r"><code>full3 &lt;- fulldata %&gt;% pivot_longer(starts_with(&quot;share&quot;), names_to = &quot;race&quot;, 
+    values_to = &quot;count&quot;, values_drop_na = TRUE)</code></pre>
+<p><em>Since I was unable to fid where to use tudying in the Wrangling section, I decided to visualize pivot longer by combining variables that started with share and put their numerical values into their own column, called count. However, this is not the best approach for the data because the information is more dificult to understand.</em></p>
+<p>##Wrangling</p>
+<pre class="r"><code>full2 &lt;- fulldata %&gt;% na.omit %&gt;% rename(`race/ethnicity` = &quot;raceethnicity&quot;) %&gt;% 
+    separate(&quot;name&quot;, into = c(&quot;first_name&quot;, &quot;last_name&quot;), sep = &quot; &quot;) %&gt;% 
+    select(last_name, &quot;race/ethnicity&quot;, age, state, armed) %&gt;% 
+    filter(armed == &quot;No&quot;) %&gt;% summarise(mean(age))
+
+full1 &lt;- fulldata %&gt;% na.omit %&gt;% select(gender, raceethnicity, 
+    armed, age, hate_crimes_per_100k_splc, median_house_inc) %&gt;% 
+    arrange(desc(age)) %&gt;% mutate(hate_income = (hate_crimes_per_100k_splc/median_house_inc))
+
+fulldata %&gt;% group_by(age) %&gt;% summarise(mean(pop))</code></pre>
+<pre><code>## # A tibble: 61 x 2
+##      age `mean(pop)`
+##    &lt;int&gt;       &lt;dbl&gt;
+##  1    16       4503.
+##  2    17       3149.
+##  3    18       3020.
+##  4    19       4258.
+##  5    20       4506.
+##  6    21       5079.
+##  7    22       5068.
+##  8    23       5907 
+##  9    24       4903.
+## 10    25       4316.
+## # … with 51 more rows</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(gender) %&gt;% summarise(n_distinct(cause))</code></pre>
+<pre><code>## # A tibble: 3 x 2
+##   gender `n_distinct(cause)`
+##   &lt;chr&gt;                &lt;int&gt;
+## 1 Female                   3
+## 2 Male                     5
+## 3 &lt;NA&gt;                     1</code></pre>
+<pre class="r"><code>fulldata %&gt;% na.omit %&gt;% group_by(raceethnicity) %&gt;% summarise(median(age))</code></pre>
+<pre><code>## # A tibble: 5 x 2
+##   raceethnicity          `median(age)`
+##   &lt;chr&gt;                          &lt;dbl&gt;
+## 1 Asian/Pacific Islander            35
+## 2 Black                             32
+## 3 Hispanic/Latino                   31
+## 4 Native American                   27
+## 5 White                             39</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(state) %&gt;% summarise(n_distinct(age))</code></pre>
+<pre><code>## # A tibble: 51 x 2
+##    state `n_distinct(age)`
+##    &lt;chr&gt;             &lt;int&gt;
+##  1 AK                    1
+##  2 AL                    8
+##  3 AR                    4
+##  4 AZ                   20
+##  5 CA                   34
+##  6 CO                    9
+##  7 CT                    1
+##  8 DC                    1
+##  9 DE                    2
+## 10 FL                   20
+## # … with 41 more rows</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(cause) %&gt;% summarise(n_distinct(raceethnicity))</code></pre>
+<pre><code>## # A tibble: 5 x 2
+##   cause             `n_distinct(raceethnicity)`
+##   &lt;chr&gt;                                   &lt;int&gt;
+## 1 Death in custody                            4
+## 2 Gunshot                                     6
+## 3 Struck by vehicle                           3
+## 4 Taser                                       6
+## 5 &lt;NA&gt;                                        4</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(armed) %&gt;% summarise(var(median_house_inc))</code></pre>
+<pre><code>## # A tibble: 8 x 2
+##   armed              `var(median_house_inc)`
+##   &lt;chr&gt;                                &lt;dbl&gt;
+## 1 Disputed                        163461280.
+## 2 Firearm                          68796358.
+## 3 Knife                            56715205.
+## 4 No                               53775562.
+## 5 Non-lethal firearm               45981263.
+## 6 Other                            77207900.
+## 7 Vehicle                          52499581.
+## 8 &lt;NA&gt;                             34012412.</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(pop) %&gt;% summarise(median(hate_crimes_per_100k_splc))</code></pre>
+<pre><code>## # A tibble: 446 x 2
+##      pop `median(hate_crimes_per_100k_splc)`
+##    &lt;int&gt;                               &lt;dbl&gt;
+##  1     0                               0.150
+##  2   403                              NA    
+##  3   678                               0.110
+##  4   732                               0.188
+##  5  1271                               0.351
+##  6  1325                               0.185
+##  7  1345                               0.110
+##  8  1354                               0.256
+##  9  1363                               0.214
+## 10  1392                              NA    
+## # … with 436 more rows</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(county_income) %&gt;% summarise(median(share_vote_trump))</code></pre>
+<pre><code>## # A tibble: 300 x 2
+##    county_income `median(share_vote_trump)`
+##            &lt;int&gt;                      &lt;dbl&gt;
+##  1         22545                      0.53 
+##  2         24927                      0.53 
+##  3         25498                      0.580
+##  4         26877                      0.63 
+##  5         29769                      0.63 
+##  6         30164                      0.51 
+##  7         30201                      0.65 
+##  8         31163                      0.69 
+##  9         31446                      0.580
+## 10         31476                      0.5  
+## # … with 290 more rows</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(hate_crimes_per_100k_splc) %&gt;% summarise(max(pop))</code></pre>
+<pre><code>## # A tibble: 48 x 2
+##    hate_crimes_per_100k_splc `max(pop)`
+##                        &lt;dbl&gt;      &lt;int&gt;
+##  1                    0.0674       7590
+##  2                    0.0691       4227
+##  3                    0.0783       8810
+##  4                    0.0954         NA
+##  5                    0.105        5378
+##  6                    0.110        5375
+##  7                    0.120       18168
+##  8                    0.124       10818
+##  9                    0.126        6971
+## 10                    0.134        6888
+## # … with 38 more rows</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(hate_crimes_per_100k_splc) %&gt;% summarise(share_vote_trump)</code></pre>
+<pre><code>## # A tibble: 471 x 2
+## # Groups:   hate_crimes_per_100k_splc [48]
+##    hate_crimes_per_100k_splc share_vote_trump
+##                        &lt;dbl&gt;            &lt;dbl&gt;
+##  1                    0.0674            0.580
+##  2                    0.0674            0.580
+##  3                    0.0674            0.580
+##  4                    0.0674            0.580
+##  5                    0.0674            0.580
+##  6                    0.0674            0.580
+##  7                    0.0691            0.6  
+##  8                    0.0691            0.6  
+##  9                    0.0691            0.6  
+## 10                    0.0691            0.6  
+## # … with 461 more rows</code></pre>
+<p><em>The dataset “full2” changed the initial variable “raceethnicity” into “race/ethnicity” so it was more appealing when reading the full dataset. Next, name was split into first and last so the data could be looked at by last names instead. In order to see the information of people not armed, I filtered for this and summarized to find the mean age of people unarmed who were killed byy police, which gave a value of 39. The new dataset “full1” looks specifically at seven columns: gender, race/ethnicity, age, state, hate crimes within the area, median household income, and if the victim was armed. The data was arranged from youngest to oldest of the victims and then mutate was used to analyzed the mean hate crimes based on house hold income. The data showed that the oldest peron killed was an 87 year old white male who was armed. He also came from an area of higher hate crimes based on the median income of his state. The summarize statistics were used to analyze various variables based on grouping and summary functions. The three most interesting functions will be discussed based on grouping of the race/ethnicity of the victims, their ages, and the hate crimes within populatiom size. Based on the ethnicity/race grouping of the victims, summary stats looked at the median age. The youngest group of te race for the victims was 27 and it belonged to the Native Americans. The oldest race group, however, belonged to white people and was at 39 years old. With grouping on victim ages, 16 year old victims were found in an average population size of 4503. When grouping by hate crimes recorded, summary stats were run on people who voted for Trump by state. The data showed increasing hate crimes with increased voting for Trump, however, there are many missing variables within hate crimes to form valid conclusions.</em></p>
+<p>##Visualizing</p>
+<pre class="r"><code>fulldata2 %&gt;% na.omit %&gt;% select_if(is.numeric) %&gt;% cor %&gt;% as.data.frame %&gt;% 
+    rownames_to_column %&gt;% pivot_longer(-1) %&gt;% ggplot(aes(rowname, 
+    name, fill = value)) + geom_tile() + geom_text(aes(label = round(value, 
+    2))) + xlab(&quot;&quot;) + ylab(&quot;&quot;) + coord_fixed() + theme(axis.text.x = element_text(angle = 90, 
+    hjust = 1)) + coord_fixed()</code></pre>
+<p><img src="/project/project1_files/figure-html/unnamed-chunk-6-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot(fulldata, aes(hate_crimes_per_100k_splc, median_house_inc, 
+    color = state)) + geom_point(size = 3) + geom_line(aes(group = state)) + 
+    theme(legend.position = &quot;right&quot;) + theme_classic() + ggtitle(&quot;Hate Crimes Based on Household Income&quot;) + 
+    ylab(&quot;Median Income&quot;) + xlab(&quot;Hate Crimes&quot;) + scale_x_continuous(n.breaks = 10) + 
+    scale_y_continuous(n.breaks = 10) + stat_summary(fun = mean, 
+    geom = &quot;line&quot;)</code></pre>
+<p><img src="/project/project1_files/figure-html/unnamed-chunk-6-2.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>fulldata %&gt;% na.omit %&gt;% ggplot(aes(pop, age, group = raceethnicity, 
+    fill = raceethnicity)) + geom_boxplot() + theme(legend.position = &quot;right&quot;) + 
+    ggtitle(&quot;Victim Ages Based on Race/Ethnicty&quot;)</code></pre>
+<p><img src="/project/project1_files/figure-html/unnamed-chunk-6-3.png" width="672" style="display: block; margin: auto;" />
+<em>When looking at the correlation map, the strongest correlation is apparent at median house income and county income, with a correlation of 0.56. this could be a strong correlation because both variables focus on income within a state. The weakest correlation is found at population and and median house income, with a correlation of -0.01. Since population is not averaged while the house income is, it could be a potential factor as to why the variables are the furthest from related. The graph illustrates the relationship of hate crimes to median house come. Based on the plots, there seems to be a positive correlation between the hate crimes and median income. This relationship differs from the expected hypothesis of increased hate crimes with increased poverty. Each plot is labeled by state, however, there is no obvious trend between location of states to hate crimes and median income within the states. The boxplot illustrates the total count of the population to that of the age of people murdered by cops. As expected, the measure of the population that identified as white is the largest, considering demographics. The smallest apparent boxplot is Native American, which also corresponds properly with race measurements within the US. The boxplots show a close relationship of shared age within the different races that have been murdered by cops, however the black and white population have the most outliers of older populations.</em></p>
+<p>##Dimensionality Reduction</p>
+<pre class="r"><code>library(cluster)
+library(plotly)
+fulldata3 &lt;- fulldata %&gt;% na.omit
+fulldata4 &lt;- fulldata3 %&gt;% dplyr::select(share_vote_trump, share_non_white, 
+    share_white_poverty, hate_crimes_per_100k_splc)
+sil_width &lt;- vector()
+for (i in 2:10) {
+    pam_fit &lt;- pam(fulldata4, k = i)
+    sil_width[i] &lt;- pam_fit$silinfo$avg.width
+}
+ggplot() + geom_line(aes(x = 1:10, y = sil_width)) + scale_x_continuous(name = &quot;k&quot;, 
+    breaks = 1:10)</code></pre>
+<p><img src="/project/project1_files/figure-html/unnamed-chunk-7-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>kclust &lt;- fulldata4 %&gt;% kmeans(5)
+kclust</code></pre>
+<pre><code>## K-means clustering with 5 clusters of sizes 100, 53, 27, 83, 137
+## 
+## Cluster means:
+##   share_vote_trump share_non_white share_white_poverty
+## 1        0.5852000       0.2547000          0.10480000
+## 2        0.4456604       0.3124528          0.08490566
+## 3        0.3837037       0.2759259          0.08000000
+## 4        0.3363855       0.5986747          0.08734940
+## 5        0.4995620       0.4775182          0.08992701
+##   hate_crimes_per_100k_splc
+## 1                 0.1791898
+## 2                 0.3684741
+## 3                 0.7252740
+## 4                 0.2705853
+## 5                 0.1855185
+## 
+## Clustering vector:
+##   [1] 1 5 1 4 1 5 4 4 5 2 4 4 1 1 1 5 2 4 4 4 1 1 4 1 3 1 4 5 5 4 3 1 1 5 2 5 5
+##  [38] 4 3 1 5 1 5 2 4 5 5 5 4 3 5 1 5 1 4 3 2 4 1 3 1 5 4 5 5 2 5 5 4 4 1 1 1 3
+##  [75] 5 2 1 1 5 1 5 5 4 2 5 5 3 5 1 5 5 4 1 4 5 1 5 2 5 4
+##  [ reached getOption(&quot;max.print&quot;) -- omitted 300 entries ]
+## 
+## Within cluster sum of squares by cluster:
+## [1] 1.3570706 0.6767058 1.1812805 0.2392309 1.1503435
+##  (between_SS / total_SS =  79.7 %)
+## 
+## Available components:
+## 
+## [1] &quot;cluster&quot;      &quot;centers&quot;      &quot;totss&quot;        &quot;withinss&quot;     &quot;tot.withinss&quot;
+## [6] &quot;betweenss&quot;    &quot;size&quot;         &quot;iter&quot;         &quot;ifault&quot;</code></pre>
+<pre class="r"><code>pam &lt;- fulldata4 %&gt;% pam(k = 5)
+pam</code></pre>
+<pre><code>## Medoids:
+##       ID share_vote_trump share_non_white share_white_poverty
+## [1,] 396             0.63            0.35                0.12
+## [2,] 330             0.49            0.24                0.09
+## [3,] 400             0.33            0.61                0.09
+## [4,]   6             0.50            0.49                0.09
+## [5,] 398             0.38            0.31                0.09
+##      hate_crimes_per_100k_splc
+## [1,]                 0.1258389
+## [2,]                 0.2851011
+## [3,]                 0.2558054
+## [4,]                 0.2253200
+## [5,]                 0.6774876
+## Clustering vector:
+##   [1] 1 1 2 3 2 4 3 3 4 2 3 3 2 2 1 4 2 3 3 3 1 1 3 1 5 2 3 4 4 3 5 1 1 4 2 4 4
+##  [38] 3 5 1 4 1 4 2 3 4 4 4 3 5 4 2 4 1 3 5 2 3 1 5 2 4 3 4 4 2 4 4 3 3 1 2 1 5
+##  [75] 4 2 2 2 4 2 4 4 3 4 4 4 5 4 1 4 4 3 1 3 4 1 4 2 4 3
+##  [ reached getOption(&quot;max.print&quot;) -- omitted 300 entries ]
+## Objective function:
+##      build       swap 
+## 0.08522959 0.08457041 
+## 
+## Available components:
+##  [1] &quot;medoids&quot;    &quot;id.med&quot;     &quot;clustering&quot; &quot;objective&quot;  &quot;isolation&quot; 
+##  [6] &quot;clusinfo&quot;   &quot;silinfo&quot;    &quot;diss&quot;       &quot;call&quot;       &quot;data&quot;</code></pre>
+<pre class="r"><code>plot(pam, which = 2)</code></pre>
+<p><img src="/project/project1_files/figure-html/unnamed-chunk-7-2.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>pam5 &lt;- fulldata3 %&gt;% mutate(cluster = as.factor(pam$clustering))
+pam5 %&gt;% plot_ly(x = ~share_vote_trump, y = ~share_non_white, 
+    z = ~hate_crimes_per_100k_splc, color = ~cluster, type = &quot;scatter3d&quot;, 
+    mode = &quot;markers&quot;, symbol = ~raceethnicity)</code></pre>
+<p><div id="htmlwidget-1" style="width:672px;height:480px;" class="plotly html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"visdat":{"13f33789e46e2":["function () ","plotlyVisDat"]},"cur_data":"13f33789e46e2","attrs":{"13f33789e46e2":{"x":{},"y":{},"z":{},"mode":"markers","color":{},"symbol":{},"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"type":"scatter3d"}},"layout":{"margin":{"b":40,"l":60,"t":25,"r":10},"scene":{"xaxis":{"title":"share_vote_trump"},"yaxis":{"title":"share_non_white"},"zaxis":{"title":"hate_crimes_per_100k_splc"}},"hovermode":"closest","showlegend":true},"source":"A","config":{"showSendToCloud":false},"data":[{"x":[0.63,0.6,0.61,0.63,0.6,0.65,0.58,0.58,0.55,0.63,0.65,0.65,0.65,0.58,0.58,0.55,0.55,0.6,0.61,0.58,0.65,0.63,0.65,0.65,0.55],"y":[0.35,0.21,0.27,0.35,0.26,0.35,0.42,0.42,0.36,0.35,0.35,0.35,0.35,0.42,0.42,0.36,0.36,0.21,0.27,0.42,0.35,0.35,0.35,0.35,0.36],"z":[0.125838926,0.159489633,0.19993848,0.125838926,0.069060773,0.133629099,0.109733348,0.109733348,0.209894423,0.125838926,0.133629099,0.133629099,0.133629099,0.109733348,0.109733348,0.209894423,0.209894423,0.159489633,0.19993848,0.109733348,0.133629099,0.125838926,0.133629099,0.133629099,0.209894423],"mode":"markers","type":"scatter3d","name":"1<br />Black","marker":{"color":"rgba(102,194,165,1)","symbol":"triangle-up","line":{"color":"rgba(102,194,165,1)"}},"textfont":{"color":"rgba(102,194,165,1)"},"error_y":{"color":"rgba(102,194,165,1)"},"error_x":{"color":"rgba(102,194,165,1)"},"line":{"color":"rgba(102,194,165,1)"},"frame":null},{"x":[0.61,0.57,0.65,0.57],"y":[0.27,0.25,0.35,0.25],"z":[0.19993848,0.105152471,0.133629099,0.105152471],"mode":"markers","type":"scatter3d","name":"1<br />Hispanic/Latino","marker":{"color":"rgba(102,194,165,1)","symbol":"square","line":{"color":"rgba(102,194,165,1)"}},"textfont":{"color":"rgba(102,194,165,1)"},"error_y":{"color":"rgba(102,194,165,1)"},"error_x":{"color":"rgba(102,194,165,1)"},"line":{"color":"rgba(102,194,165,1)"},"frame":null},{"x":[0.58,0.65,0.59,0.57,0.55,0.6,0.6,0.59,0.65,0.58,0.57,0.65,0.63,0.65,0.65,0.63,0.55,0.61,0.65,0.61,0.6,0.65,0.55,0.65,0.61,0.59,0.58,0.55,0.65,0.57,0.65,0.57,0.58,0.63,0.6,0.63],"y":[0.42,0.35,0.16,0.25,0.36,0.26,0.21,0.16,0.35,0.42,0.25,0.35,0.35,0.35,0.35,0.35,0.36,0.27,0.35,0.27,0.26,0.35,0.36,0.35,0.27,0.16,0.42,0.36,0.35,0.25,0.35,0.25,0.42,0.35,0.21,0.35],"z":[0.109733348,0.133629099,0.124208173,0.105152471,0.209894423,0.069060773,0.159489633,0.124208173,0.133629099,0.109733348,0.105152471,0.133629099,0.125838926,0.133629099,0.133629099,0.125838926,0.209894423,0.19993848,0.133629099,0.19993848,0.069060773,0.133629099,0.209894423,0.133629099,0.19993848,0.124208173,0.109733348,0.209894423,0.133629099,0.105152471,0.133629099,0.105152471,0.109733348,0.125838926,0.159489633,0.125838926],"mode":"markers","type":"scatter3d","name":"1<br />White","marker":{"color":"rgba(102,194,165,1)","symbol":"square-x-open","line":{"color":"rgba(102,194,165,1)"}},"textfont":{"color":"rgba(102,194,165,1)"},"error_y":{"color":"rgba(102,194,165,1)"},"error_x":{"color":"rgba(102,194,165,1)"},"line":{"color":"rgba(102,194,165,1)"},"frame":null},{"x":[0.44],"y":[0.31],"z":[0.390523301],"mode":"markers","type":"scatter3d","name":"2<br />Asian/Pacific Islander","marker":{"color":"rgba(252,141,98,1)","symbol":"circle","line":{"color":"rgba(252,141,98,1)"}},"textfont":{"color":"rgba(252,141,98,1)"},"error_y":{"color":"rgba(252,141,98,1)"},"error_x":{"color":"rgba(252,141,98,1)"},"line":{"color":"rgba(252,141,98,1)"},"frame":null},{"x":[0.49,0.52,0.63,0.48,0.63,0.57,0.45,0.57,0.57,0.57,0.52,0.44,0.57,0.49,0.57,0.45,0.44,0.45,0.48,0.52,0.57,0.52,0.57,0.44,0.48,0.48,0.45,0.45],"y":[0.24,0.21,0.15,0.24,0.15,0.2,0.38,0.2,0.2,0.2,0.21,0.31,0.2,0.24,0.2,0.38,0.31,0.38,0.24,0.21,0.2,0.21,0.2,0.31,0.22,0.22,0.38,0.38],"z":[0.285101092,0.190713964,0.324396969,0.403779375,0.324396969,0.18452351,0.363248898,0.247008877,0.247008877,0.18452351,0.190713964,0.390523301,0.18452351,0.285101092,0.247008877,0.363248898,0.390523301,0.363248898,0.403779375,0.190713964,0.18452351,0.190713964,0.18452351,0.390523301,0.226197105,0.226197105,0.363248898,0.363248898],"mode":"markers","type":"scatter3d","name":"2<br />Black","marker":{"color":"rgba(252,141,98,1)","symbol":"triangle-up","line":{"color":"rgba(252,141,98,1)"}},"textfont":{"color":"rgba(252,141,98,1)"},"error_y":{"color":"rgba(252,141,98,1)"},"error_x":{"color":"rgba(252,141,98,1)"},"line":{"color":"rgba(252,141,98,1)"},"frame":null},{"x":[0.45,0.44,0.44,0.44],"y":[0.38,0.31,0.31,0.31],"z":[0.363248898,0.390523301,0.390523301,0.390523301],"mode":"markers","type":"scatter3d","name":"2<br />Hispanic/Latino","marker":{"color":"rgba(252,141,98,1)","symbol":"square","line":{"color":"rgba(252,141,98,1)"}},"textfont":{"color":"rgba(252,141,98,1)"},"error_y":{"color":"rgba(252,141,98,1)"},"error_x":{"color":"rgba(252,141,98,1)"},"line":{"color":"rgba(252,141,98,1)"},"frame":null},{"x":[0.48,0.52,0.48,0.57,0.57,0.47,0.52,0.44,0.45,0.69,0.47,0.44,0.48,0.49,0.52,0.41,0.48,0.57,0.57,0.57,0.69,0.63,0.48,0.47,0.57,0.63,0.47,0.49,0.49,0.57,0.52,0.48,0.42,0.57,0.48,0.57,0.57,0.48,0.63,0.63,0.57,0.57,0.49,0.42,0.52,0.49,0.45,0.52,0.48,0.44,0.48,0.47],"y":[0.22,0.21,0.24,0.2,0.2,0.09,0.15,0.31,0.38,0.07,0.19,0.31,0.24,0.24,0.21,0.3,0.24,0.2,0.2,0.2,0.07,0.15,0.24,0.19,0.2,0.15,0.19,0.24,0.24,0.1,0.21,0.22,0.37,0.2,0.24,0.1,0.2,0.24,0.15,0.15,0.2,0.2,0.24,0.37,0.15,0.24,0.38,0.21,0.24,0.31,0.22,0.19],"z":[0.226197105,0.190713964,0.403779375,0.247008877,0.247008877,0.151549595,0.454427421,0.390523301,0.363248898,0.328677075,0.136546733,0.390523301,0.403779375,0.285101092,0.190713964,0.335392269,0.403779375,0.18452351,0.247008877,0.247008877,0.328677075,0.324396969,0.403779375,0.136546733,0.18452351,0.324396969,0.136546733,0.285101092,0.285101092,0.495491032,0.190713964,0.226197105,0.322754169,0.247008877,0.403779375,0.495491032,0.18452351,0.403779375,0.324396969,0.324396969,0.18452351,0.18452351,0.285101092,0.322754169,0.454427421,0.285101092,0.363248898,0.190713964,0.403779375,0.390523301,0.226197105,0.136546733],"mode":"markers","type":"scatter3d","name":"2<br />White","marker":{"color":"rgba(252,141,98,1)","symbol":"square-x-open","line":{"color":"rgba(252,141,98,1)"}},"textfont":{"color":"rgba(252,141,98,1)"},"error_y":{"color":"rgba(252,141,98,1)"},"error_x":{"color":"rgba(252,141,98,1)"},"line":{"color":"rgba(252,141,98,1)"},"frame":null},{"x":[0.33,0.33,0.33],"y":[0.61,0.61,0.61],"z":[0.255805361,0.255805361,0.255805361],"mode":"markers","type":"scatter3d","name":"3<br />Asian/Pacific Islander","marker":{"color":"rgba(141,160,203,1)","symbol":"circle","line":{"color":"rgba(141,160,203,1)"}},"textfont":{"color":"rgba(141,160,203,1)"},"error_y":{"color":"rgba(141,160,203,1)"},"error_x":{"color":"rgba(141,160,203,1)"},"line":{"color":"rgba(141,160,203,1)"},"frame":null},{"x":[0.33,0.33,0.33,0.33,0.35,0.35,0.35,0.33,0.33,0.35,0.35,0.35,0.33,0.35,0.33,0.33,0.33,0.33,0.33,0.33,0.35,0.33],"y":[0.61,0.61,0.61,0.61,0.5,0.5,0.5,0.61,0.61,0.5,0.5,0.5,0.61,0.5,0.61,0.61,0.61,0.61,0.61,0.61,0.5,0.61],"z":[0.255805361,0.255805361,0.255805361,0.255805361,0.37043897,0.37043897,0.37043897,0.255805361,0.255805361,0.37043897,0.37043897,0.37043897,0.255805361,0.37043897,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.37043897,0.255805361],"mode":"markers","type":"scatter3d","name":"3<br />Black","marker":{"color":"rgba(141,160,203,1)","symbol":"triangle-up","line":{"color":"rgba(141,160,203,1)"}},"textfont":{"color":"rgba(141,160,203,1)"},"error_y":{"color":"rgba(141,160,203,1)"},"error_x":{"color":"rgba(141,160,203,1)"},"line":{"color":"rgba(141,160,203,1)"},"frame":null},{"x":[0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33],"y":[0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61],"z":[0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361],"mode":"markers","type":"scatter3d","name":"3<br />Hispanic/Latino","marker":{"color":"rgba(141,160,203,1)","symbol":"square","line":{"color":"rgba(141,160,203,1)"}},"textfont":{"color":"rgba(141,160,203,1)"},"error_y":{"color":"rgba(141,160,203,1)"},"error_x":{"color":"rgba(141,160,203,1)"},"line":{"color":"rgba(141,160,203,1)"},"frame":null},{"x":[0.33,0.33,0.33,0.33,0.33,0.4,0.33,0.33,0.33,0.33,0.4,0.33,0.33,0.33,0.4,0.35,0.33,0.4,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.4,0.33],"y":[0.61,0.61,0.61,0.61,0.61,0.62,0.61,0.61,0.61,0.61,0.62,0.61,0.61,0.61,0.62,0.5,0.61,0.62,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.61,0.62,0.61],"z":[0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.294811321,0.255805361,0.255805361,0.255805361,0.255805361,0.294811321,0.255805361,0.255805361,0.255805361,0.294811321,0.37043897,0.255805361,0.294811321,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.255805361,0.294811321,0.255805361],"mode":"markers","type":"scatter3d","name":"3<br />White","marker":{"color":"rgba(141,160,203,1)","symbol":"square-x-open","line":{"color":"rgba(141,160,203,1)"}},"textfont":{"color":"rgba(141,160,203,1)"},"error_y":{"color":"rgba(141,160,203,1)"},"error_x":{"color":"rgba(141,160,203,1)"},"line":{"color":"rgba(141,160,203,1)"},"frame":null},{"x":[0.42,0.53,0.53],"y":[0.44,0.56,0.56],"z":[0.078305908,0.213583938,0.213583938],"mode":"markers","type":"scatter3d","name":"4<br />Asian/Pacific Islander","marker":{"color":"rgba(231,138,195,1)","symbol":"circle","line":{"color":"rgba(231,138,195,1)"}},"textfont":{"color":"rgba(231,138,195,1)"},"error_y":{"color":"rgba(231,138,195,1)"},"error_x":{"color":"rgba(231,138,195,1)"},"line":{"color":"rgba(231,138,195,1)"},"frame":null},{"x":[0.51,0.49,0.51,0.51,0.51,0.49,0.49,0.49,0.37,0.42,0.39,0.49,0.37,0.53,0.5,0.51,0.37,0.53,0.37,0.53,0.51,0.49,0.51,0.51,0.42,0.39,0.49,0.53,0.53,0.39,0.37,0.53,0.49,0.42,0.49,0.51,0.51,0.53,0.42,0.42,0.53,0.53,0.39,0.39,0.49],"y":[0.48,0.46,0.48,0.48,0.48,0.46,0.46,0.46,0.42,0.44,0.37,0.46,0.42,0.56,0.49,0.48,0.42,0.56,0.42,0.56,0.38,0.46,0.38,0.38,0.44,0.37,0.46,0.56,0.56,0.37,0.42,0.56,0.46,0.44,0.46,0.48,0.48,0.56,0.44,0.44,0.56,0.56,0.37,0.37,0.46],"z":[0.120420267,0.187521223,0.120420267,0.120420267,0.120420267,0.187521223,0.187521223,0.187521223,0.350620446,0.078305908,0.195344549,0.187521223,0.350620446,0.213583938,0.225319954,0.120420267,0.350620446,0.213583938,0.350620446,0.213583938,0.244006588,0.187521223,0.244006588,0.244006588,0.078305908,0.195344549,0.187521223,0.213583938,0.213583938,0.195344549,0.350620446,0.213583938,0.187521223,0.078305908,0.187521223,0.120420267,0.120420267,0.213583938,0.078305908,0.078305908,0.213583938,0.213583938,0.195344549,0.195344549,0.187521223],"mode":"markers","type":"scatter3d","name":"4<br />Black","marker":{"color":"rgba(231,138,195,1)","symbol":"triangle-up","line":{"color":"rgba(231,138,195,1)"}},"textfont":{"color":"rgba(231,138,195,1)"},"error_y":{"color":"rgba(231,138,195,1)"},"error_x":{"color":"rgba(231,138,195,1)"},"line":{"color":"rgba(231,138,195,1)"},"frame":null},{"x":[0.53,0.51,0.53,0.5,0.53,0.53,0.5,0.49,0.53,0.37,0.42,0.53,0.39,0.49,0.5,0.53,0.53,0.5,0.5,0.53,0.53,0.53,0.53,0.53,0.46,0.5,0.53],"y":[0.56,0.48,0.56,0.49,0.56,0.56,0.49,0.46,0.56,0.42,0.44,0.56,0.37,0.46,0.49,0.42,0.56,0.49,0.49,0.56,0.56,0.56,0.56,0.56,0.5,0.49,0.56],"z":[0.213583938,0.120420267,0.213583938,0.225319954,0.213583938,0.213583938,0.225319954,0.187521223,0.213583938,0.350620446,0.078305908,0.213583938,0.195344549,0.187521223,0.225319954,0.143740118,0.213583938,0.225319954,0.225319954,0.213583938,0.213583938,0.213583938,0.213583938,0.213583938,0.14167316,0.225319954,0.213583938],"mode":"markers","type":"scatter3d","name":"4<br />Hispanic/Latino","marker":{"color":"rgba(231,138,195,1)","symbol":"square","line":{"color":"rgba(231,138,195,1)"}},"textfont":{"color":"rgba(231,138,195,1)"},"error_y":{"color":"rgba(231,138,195,1)"},"error_x":{"color":"rgba(231,138,195,1)"},"line":{"color":"rgba(231,138,195,1)"},"frame":null},{"x":[0.5,0.53,0.5],"y":[0.49,0.42,0.49],"z":[0.225319954,0.143740118,0.225319954],"mode":"markers","type":"scatter3d","name":"4<br />Native American","marker":{"color":"rgba(231,138,195,1)","symbol":"cross-thin-open","line":{"color":"rgba(231,138,195,1)"}},"textfont":{"color":"rgba(231,138,195,1)"},"error_y":{"color":"rgba(231,138,195,1)"},"error_x":{"color":"rgba(231,138,195,1)"},"line":{"color":"rgba(231,138,195,1)"},"frame":null},{"x":[0.5,0.53,0.51,0.49,0.51,0.49,0.53,0.49,0.51,0.53,0.51,0.5,0.49,0.51,0.37,0.51,0.53,0.5,0.5,0.5,0.53,0.46,0.49,0.49,0.49,0.37,0.49,0.51,0.49,0.46,0.5,0.37,0.39,0.49,0.5,0.39,0.49,0.5,0.5,0.53,0.53,0.51,0.37,0.39,0.5,0.51,0.37,0.51,0.53,0.53,0.53,0.53,0.5,0.53,0.5,0.42,0.5,0.42,0.39,0.53,0.37,0.51],"y":[0.49,0.56,0.48,0.46,0.38,0.46,0.56,0.46,0.48,0.56,0.48,0.49,0.46,0.38,0.42,0.38,0.56,0.49,0.49,0.49,0.56,0.5,0.46,0.46,0.46,0.42,0.46,0.38,0.46,0.5,0.49,0.42,0.37,0.46,0.49,0.37,0.46,0.49,0.49,0.56,0.56,0.38,0.42,0.37,0.49,0.38,0.42,0.48,0.56,0.56,0.56,0.56,0.49,0.56,0.49,0.44,0.49,0.44,0.37,0.56,0.42,0.38],"z":[0.225319954,0.213583938,0.120420267,0.187521223,0.244006588,0.187521223,0.213583938,0.187521223,0.120420267,0.213583938,0.120420267,0.225319954,0.187521223,0.244006588,0.350620446,0.244006588,0.213583938,0.225319954,0.225319954,0.225319954,0.213583938,0.14167316,0.187521223,0.187521223,0.187521223,0.350620446,0.187521223,0.244006588,0.187521223,0.14167316,0.225319954,0.350620446,0.195344549,0.187521223,0.225319954,0.195344549,0.187521223,0.225319954,0.225319954,0.213583938,0.213583938,0.244006588,0.350620446,0.195344549,0.225319954,0.244006588,0.350620446,0.120420267,0.213583938,0.213583938,0.213583938,0.213583938,0.225319954,0.213583938,0.225319954,0.078305908,0.225319954,0.078305908,0.195344549,0.213583938,0.350620446,0.244006588],"mode":"markers","type":"scatter3d","name":"4<br />White","marker":{"color":"rgba(231,138,195,1)","symbol":"square-x-open","line":{"color":"rgba(231,138,195,1)"}},"textfont":{"color":"rgba(231,138,195,1)"},"error_y":{"color":"rgba(231,138,195,1)"},"error_x":{"color":"rgba(231,138,195,1)"},"line":{"color":"rgba(231,138,195,1)"},"frame":null},{"x":[0.45],"y":[0.18],"z":[0.62747993],"mode":"markers","type":"scatter3d","name":"5<br />Asian/Pacific Islander","marker":{"color":"rgba(166,216,84,1)","symbol":"circle","line":{"color":"rgba(166,216,84,1)"}},"textfont":{"color":"rgba(166,216,84,1)"},"error_y":{"color":"rgba(166,216,84,1)"},"error_x":{"color":"rgba(166,216,84,1)"},"line":{"color":"rgba(166,216,84,1)"},"frame":null},{"x":[0.34,0.04,0.38,0.45,0.45],"y":[0.27,0.63,0.31,0.18,0.18],"z":[0.630810592,1.52230172,0.67748765,0.62747993,0.62747993],"mode":"markers","type":"scatter3d","name":"5<br />Black","marker":{"color":"rgba(166,216,84,1)","symbol":"triangle-up","line":{"color":"rgba(166,216,84,1)"}},"textfont":{"color":"rgba(166,216,84,1)"},"error_y":{"color":"rgba(166,216,84,1)"},"error_x":{"color":"rgba(166,216,84,1)"},"line":{"color":"rgba(166,216,84,1)"},"frame":null},{"x":[0.38,0.38],"y":[0.31,0.31],"z":[0.67748765,0.67748765],"mode":"markers","type":"scatter3d","name":"5<br />Hispanic/Latino","marker":{"color":"rgba(166,216,84,1)","symbol":"square","line":{"color":"rgba(166,216,84,1)"}},"textfont":{"color":"rgba(166,216,84,1)"},"error_y":{"color":"rgba(166,216,84,1)"},"error_x":{"color":"rgba(166,216,84,1)"},"line":{"color":"rgba(166,216,84,1)"},"frame":null},{"x":[0.38],"y":[0.31],"z":[0.67748765],"mode":"markers","type":"scatter3d","name":"5<br />Native American","marker":{"color":"rgba(166,216,84,1)","symbol":"cross-thin-open","line":{"color":"rgba(166,216,84,1)"}},"textfont":{"color":"rgba(166,216,84,1)"},"error_y":{"color":"rgba(166,216,84,1)"},"error_x":{"color":"rgba(166,216,84,1)"},"line":{"color":"rgba(166,216,84,1)"},"frame":null},{"x":[0.41,0.41,0.41,0.41,0.34,0.38,0.45,0.41,0.41,0.38,0.38,0.34,0.34,0.45,0.45,0.38,0.38,0.38],"y":[0.26,0.26,0.26,0.26,0.27,0.31,0.18,0.26,0.26,0.31,0.31,0.27,0.27,0.18,0.18,0.31,0.31,0.31],"z":[0.832849608,0.832849608,0.832849608,0.832849608,0.630810592,0.67748765,0.62747993,0.832849608,0.832849608,0.67748765,0.67748765,0.630810592,0.630810592,0.62747993,0.62747993,0.67748765,0.67748765,0.67748765],"mode":"markers","type":"scatter3d","name":"5<br />White","marker":{"color":"rgba(166,216,84,1)","symbol":"square-x-open","line":{"color":"rgba(166,216,84,1)"}},"textfont":{"color":"rgba(166,216,84,1)"},"error_y":{"color":"rgba(166,216,84,1)"},"error_x":{"color":"rgba(166,216,84,1)"},"line":{"color":"rgba(166,216,84,1)"},"frame":null}],"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.2,"selected":{"opacity":1},"debounce":0},"shinyEvents":["plotly_hover","plotly_click","plotly_selected","plotly_relayout","plotly_brushed","plotly_brushing","plotly_clickannotation","plotly_doubleclick","plotly_deselect","plotly_afterplot","plotly_sunburstclick"],"base_url":"https://plot.ly"},"evals":[],"jsHooks":[]}</script>
+<em>Since the clusters measured variables collected as fractions, the clusters had similar scaled vairables. The cluster sizes were 73, 27, 100, 117, and 83. The cluster number was 5 because between 2-6, 5 gave a sum of squares of 79.5%. While values from 7-10 were increasing, I chose 5 in order to keep a small amount of clusters while still having a decent sum of squares. The average silhouette width is weak, found at 0.47. The graph shows the clusters in a 3D shape to show the relationship between the four variables better. It is apparent that the darker green points are further at the bottom while the orange are further at the top of the graph, but with a smaller portion of non white population size.</em></p>
+</div>

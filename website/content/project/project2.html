@@ -1,0 +1,774 @@
+---
+title: "Project 2"
+author: "Sarai Rainey, sis446"
+date: "5/02/2021"
+output: html_document
+---
+
+
+
+<pre class="r"><code>knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = &quot;center&quot;, warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))</code></pre>
+<p>##0)Introduction</p>
+<pre class="r"><code>library(fivethirtyeight)
+library(tidyverse)
+library(dplyr)
+library(lmtest)
+library(plotROC)
+data(hate_crimes)
+data(police_killings)
+fulldata &lt;- full_join(police_killings, hate_crimes, by = c(state = &quot;state_abbrev&quot;))
+fulldata &lt;- fulldata %&gt;% select(age, gender, raceethnicity, state, 
+    cause, armed, pop, county_income, hate_crimes_per_100k_splc, 
+    share_vote_trump) %&gt;% na.omit</code></pre>
+<p><em>The merged dataset that is being used was chosen from the two datasets used in the first experiment, which are “police_killings” and “hate_crimes”. The selected variables include age of the victims of police killings,their gender, race/ethnicity, the state they were murdered in, if they were armed, their cause of death, the population size of the State during 2015, the county’s income at that time, hate crimes found within given areas of the state, and people who voted for Trump within certain population sizes in 2015. This data was collected based on where police have killed Americans in 2015. The dataset currently contains 471 bservations with 10 variables. There are five numeric variables and five categorical variables.</em></p>
+<div id="manova" class="section level2">
+<h2>1)MANOVA</h2>
+<pre class="r"><code>man &lt;- manova(cbind(pop, county_income, hate_crimes_per_100k_splc, 
+    share_vote_trump) ~ raceethnicity, data = fulldata) %&gt;% na.omit
+summary(man)</code></pre>
+<pre><code>##                Df Pillai approx F num Df den Df    Pr(&gt;F)    
+## raceethnicity   4 0.1214   3.3647     16   1720 6.938e-06 ***
+## Residuals     430                                            
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>summary.aov(man)</code></pre>
+<pre><code>##  Response pop :
+##                Df     Sum Sq  Mean Sq F value  Pr(&gt;F)  
+## raceethnicity   4   69793597 17448399  3.1334 0.01472 *
+## Residuals     430 2394451784  5568493                  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+##  Response county_income :
+##                Df     Sum Sq   Mean Sq F value  Pr(&gt;F)  
+## raceethnicity   4 1.6329e+09 408231486  2.4226 0.04764 *
+## Residuals     430 7.2460e+10 168511648                  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+##  Response hate_crimes_per_100k_splc :
+##                Df  Sum Sq  Mean Sq F value Pr(&gt;F)
+## raceethnicity   4  0.0557 0.013916  0.5666  0.687
+## Residuals     430 10.5607 0.024560               
+## 
+##  Response share_vote_trump :
+##                Df Sum Sq  Mean Sq F value   Pr(&gt;F)   
+## raceethnicity   4 0.1825 0.045614  4.6586 0.001086 **
+## Residuals     430 4.2102 0.009791                    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>fulldata %&gt;% group_by(raceethnicity) %&gt;% summarize(mean(pop), 
+    mean(county_income), mean(hate_crimes_per_100k_splc), mean(share_vote_trump))</code></pre>
+<pre><code>## # A tibble: 5 x 5
+##   raceethnicity  `mean(pop)` `mean(county_inc… `mean(hate_crim… `mean(share_vot…
+##   &lt;chr&gt;                &lt;dbl&gt;             &lt;dbl&gt;            &lt;dbl&gt;            &lt;dbl&gt;
+## 1 Asian/Pacific…       4188.            60180             0.286            0.42 
+## 2 Black                4190.            54226.            0.248            0.478
+## 3 Hispanic/Lati…       4878.            53381.            0.247            0.434
+## 4 Native Americ…       5131             50724.            0.318            0.478
+## 5 White                5076.            50726.            0.266            0.490</code></pre>
+<pre class="r"><code>pairwise.t.test(fulldata$pop, fulldata$raceethnicity, p.adj = &quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  fulldata$pop and fulldata$raceethnicity 
+## 
+##                 Asian/Pacific Islander Black   Hispanic/Latino Native American
+## Black           0.99797                -       -               -              
+## Hispanic/Latino 0.43618                0.05615 -               -              
+## Native American 0.51449                0.43263 0.83527         -              
+## White           0.29619                0.00065 0.55331         0.96328        
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code>pairwise.t.test(fulldata$county_income, fulldata$raceethnicity, 
+    p.adj = &quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  fulldata$county_income and fulldata$raceethnicity 
+## 
+##                 Asian/Pacific Islander Black Hispanic/Latino Native American
+## Black           0.208                  -     -               -              
+## Hispanic/Latino 0.163                  0.669 -               -              
+## Native American 0.235                  0.595 0.691           -              
+## White           0.044                  0.014 0.149           1.000          
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code>pairwise.t.test(fulldata$hate_crimes_per_100k_splc, fulldata$raceethnicity, 
+    p.adj = &quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  fulldata$hate_crimes_per_100k_splc and fulldata$raceethnicity 
+## 
+##                 Asian/Pacific Islander Black Hispanic/Latino Native American
+## Black           0.50                   -     -               -              
+## Hispanic/Latino 0.50                   0.96  -               -              
+## Native American 0.74                   0.38  0.38            -              
+## White           0.71                   0.30  0.39            0.51           
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code>pairwise.t.test(fulldata$share_vote_trump, fulldata$raceethnicity, 
+    p.adj = &quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  fulldata$share_vote_trump and fulldata$raceethnicity 
+## 
+##                 Asian/Pacific Islander Black  Hispanic/Latino Native American
+## Black           0.1087                 -      -               -              
+## Hispanic/Latino 0.7018                 0.0039 -               -              
+## Native American 0.3432                 0.9937 0.3965          -              
+## White           0.0493                 0.2567 7.6e-05         0.7996         
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code>0.95^21  #type 1 error(find # tests) or is it 1-.95^21</code></pre>
+<pre><code>## [1] 0.3405616</code></pre>
+<pre class="r"><code>0.05/21  #bonferroni</code></pre>
+<pre><code>## [1] 0.002380952</code></pre>
+<p><em>After running the MANOVA, the p-value is less than 0.05, making it significant. Next, one way ANOVAs were conducted to identify which mean values were significant for a given group. After running the ANOVA, the significant mean values came from the following groups: population, race/ethnicity, and the share of the population that voted for Trump. Hate crimes were not significant because the p-value was greater than 0.05. The tests included 1 MANOVA, 4 AVONAS, and 16 t-tests with a total of 21 tests. This gave a type 1 error rate of 0.34. With bonferroni, the new value is 0.00238. This means only the share of the population that voted for Trump is significant when looking at race/ethnicity in the ANOVA. The MANOVA remained significant. The MANOVA assumptions would not be met. A few examples of the assumptions that are violated include homogeneity within the groups, outliers, and multicollinearity. The groups are not evenly separated, for example, race/ethnicity has a higher number of white people measured. Homogeneity is violated because there is not equal variance within the groups measured. Multicollinearity is also violated because some correlations are present, with race/ethnicity, Trump votes also increase with specific race groups measured.</em></p>
+<p>##2)Correlation</p>
+<pre class="r"><code>library(&quot;ggpubr&quot;)
+ggscatter(fulldata, x = &quot;hate_crimes_per_100k_splc&quot;, y = &quot;share_vote_trump&quot;, 
+    add = &quot;reg.line&quot;, conf.int = TRUE, cor.coef = TRUE, cor.method = &quot;pearson&quot;, 
+    xlab = &quot;Hate Crimes (per 100k)&quot;, ylab = &quot;Trump Votes&quot;)</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-4-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>vote_hate &lt;- cor.test(fulldata$hate_crimes_per_100k_splc, fulldata$share_vote_trump, 
+    method = &quot;pearson&quot;)
+vote_hate</code></pre>
+<pre><code>## 
+##  Pearson&#39;s product-moment correlation
+## 
+## data:  fulldata$hate_crimes_per_100k_splc and fulldata$share_vote_trump
+## t = -10.731, df = 433, p-value &lt; 2.2e-16
+## alternative hypothesis: true correlation is not equal to 0
+## 95 percent confidence interval:
+##  -0.5295554 -0.3807440
+## sample estimates:
+##        cor 
+## -0.4583562</code></pre>
+<p><em>Null hypothesis: There is no correlation between hate crimes within a population size and Trump votes within a population size. Alternative hypothesis: There is a correlation between hate crimes and Trump votes within a population. After running the correlation test, there was a p value less than 0.05, meaning it was significant. This means we can accept the alternative hypothesis. However, since the correlation test is -.458, it is a weak interaction.</em></p>
+<p>##3)Linear Regression</p>
+<pre class="r"><code>fulldata$share_vote_trump_c &lt;- fulldata$share_vote_trump - mean(fulldata$share_vote_trump, 
+    na.rm = T)
+fulldata$hate_crimes_per_100k_splc_c &lt;- fulldata$hate_crimes_per_100k_splc - 
+    mean(fulldata$hate_crimes_per_100k_splc, na.rm = T)
+fit &lt;- lm(hate_crimes_per_100k_splc_c ~ share_vote_trump_c + 
+    raceethnicity, data = fulldata)
+summary(fit)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = hate_crimes_per_100k_splc_c ~ share_vote_trump_c + 
+##     raceethnicity, data = fulldata)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -0.24013 -0.07822 -0.02204  0.02628  0.94476 
+## 
+## Coefficients:
+##                               Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                  -0.014654   0.048953  -0.299    0.765    
+## share_vote_trump_c           -0.752843   0.067274 -11.191   &lt;2e-16 ***
+## raceethnicityBlack            0.005096   0.050401   0.101    0.920    
+## raceethnicityHispanic/Latino -0.028944   0.051773  -0.559    0.576    
+## raceethnicityNative American  0.074894   0.084619   0.885    0.377    
+## raceethnicityWhite            0.032078   0.049884   0.643    0.521    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.138 on 429 degrees of freedom
+## Multiple R-squared:   0.23,  Adjusted R-squared:  0.221 
+## F-statistic: 25.63 on 5 and 429 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>fit2 &lt;- lm(hate_crimes_per_100k_splc_c ~ share_vote_trump_c * 
+    raceethnicity, data = fulldata)
+summary(fit2)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = hate_crimes_per_100k_splc_c ~ share_vote_trump_c * 
+##     raceethnicity, data = fulldata)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -0.23999 -0.07822 -0.02213  0.01984  0.87665 
+## 
+## Coefficients:
+##                                                 Estimate Std. Error t value
+## (Intercept)                                      0.03329    0.05944   0.560
+## share_vote_trump_c                               0.09148    0.61147   0.150
+## raceethnicityBlack                              -0.04267    0.06061  -0.704
+## raceethnicityHispanic/Latino                    -0.06117    0.06230  -0.982
+## raceethnicityNative American                     0.02903    0.09049   0.321
+## raceethnicityWhite                              -0.01589    0.06014  -0.264
+## share_vote_trump_c:raceethnicityBlack           -0.99988    0.62197  -1.608
+## share_vote_trump_c:raceethnicityHispanic/Latino -0.47508    0.63702  -0.746
+## share_vote_trump_c:raceethnicityNative American -3.73512    1.33287  -2.802
+## share_vote_trump_c:raceethnicityWhite           -0.84226    0.61859  -1.362
+##                                                 Pr(&gt;|t|)   
+## (Intercept)                                      0.57575   
+## share_vote_trump_c                               0.88114   
+## raceethnicityBlack                               0.48175   
+## raceethnicityHispanic/Latino                     0.32675   
+## raceethnicityNative American                     0.74853   
+## raceethnicityWhite                               0.79172   
+## share_vote_trump_c:raceethnicityBlack            0.10867   
+## share_vote_trump_c:raceethnicityHispanic/Latino  0.45621   
+## share_vote_trump_c:raceethnicityNative American  0.00531 **
+## share_vote_trump_c:raceethnicityWhite            0.17406   
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.1365 on 425 degrees of freedom
+## Multiple R-squared:  0.2546, Adjusted R-squared:  0.2388 
+## F-statistic: 16.13 on 9 and 425 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>fulldata %&gt;% ggplot(aes(share_vote_trump_c, hate_crimes_per_100k_splc)) + 
+    geom_point() + geom_smooth(method = &quot;lm&quot;, se = F)</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-5-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>summary(fit)$r.sq</code></pre>
+<pre><code>## [1] 0.2300148</code></pre>
+<pre class="r"><code>summary(fit2)$r.sq</code></pre>
+<pre><code>## [1] 0.2545828</code></pre>
+<pre class="r"><code>resids &lt;- fit$residuals
+fitvals &lt;- fit$fitted.values
+ggplot() + geom_point(aes(fitvals, resids)) + geom_hline(yintercept = 0, 
+    color = &quot;red&quot;)  #no interaction, linearity/homoske.</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-5-2.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>hist(resids)  #no interaction, normality</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-5-3.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>resids2 &lt;- fit2$residuals
+fitvals2 &lt;- fit2$fitted.values
+ggplot() + geom_point(aes(fitvals2, resids2)) + geom_hline(yintercept = 0, 
+    color = &quot;red&quot;)  #interaction, linearity/homoske.</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-5-4.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>hist(resids2)  #interaction, normality</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-5-5.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>library(sandwich)
+library(lmtest)
+coeftest(fit, vcov = vcovHC(fit))</code></pre>
+<pre><code>## 
+## t test of coefficients:
+## 
+##                                Estimate Std. Error t value  Pr(&gt;|t|)    
+## (Intercept)                  -0.0146540  0.0672799 -0.2178    0.8277    
+## share_vote_trump_c           -0.7528431  0.1198885 -6.2795 8.333e-10 ***
+## raceethnicityBlack            0.0050956  0.0690137  0.0738    0.9412    
+## raceethnicityHispanic/Latino -0.0289442  0.0680634 -0.4253    0.6709    
+## raceethnicityNative American  0.0748938  0.1305961  0.5735    0.5666    
+## raceethnicityWhite            0.0320781  0.0685190  0.4682    0.6399    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>coeftest(fit2, vcov = vcovHC(fit2))</code></pre>
+<pre><code>## 
+## t test of coefficients:
+## 
+##                                                  Estimate Std. Error t value
+## (Intercept)                                      0.033288   0.085417  0.3897
+## share_vote_trump_c                               0.091484   0.485892  0.1883
+## raceethnicityBlack                              -0.042674   0.086273 -0.4946
+## raceethnicityHispanic/Latino                    -0.061170   0.086017 -0.7111
+## raceethnicityNative American                     0.029028   0.091741  0.3164
+## raceethnicityWhite                              -0.015892   0.086106 -0.1846
+## share_vote_trump_c:raceethnicityBlack           -0.999876   0.582148 -1.7176
+## share_vote_trump_c:raceethnicityHispanic/Latino -0.475078   0.491499 -0.9666
+## share_vote_trump_c:raceethnicityNative American -3.735121   1.052241 -3.5497
+## share_vote_trump_c:raceethnicityWhite           -0.842260   0.496901 -1.6950
+##                                                  Pr(&gt;|t|)    
+## (Intercept)                                     0.6969424    
+## share_vote_trump_c                              0.8507472    
+## raceethnicityBlack                              0.6211126    
+## raceethnicityHispanic/Latino                    0.4773883    
+## raceethnicityNative American                    0.7518418    
+## raceethnicityWhite                              0.8536616    
+## share_vote_trump_c:raceethnicityBlack           0.0866050 .  
+## share_vote_trump_c:raceethnicityHispanic/Latino 0.3342986    
+## share_vote_trump_c:raceethnicityNative American 0.0004288 ***
+## share_vote_trump_c:raceethnicityWhite           0.0908028 .  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<ul>
+<li>With no interaction between race/ethnicity and the share of the population that voted for Trump, the intercept represents the Asian population that had reported hate crimes. The predicted hate crimes within a population for the Asian population is -0.015. Hate crimes associated with Trump votes for the Asian population: for every 1-unit increase in hate crimes, predicted Trump votes go down 0.75 for this group. The Black population with zero Trump votes have predicted hate crimes that are 0.005 higher than the Asian population with zero hate crimes. The Hispanic population with zero Trump votes have predicted hate crimes that are 0.029 lower than the Asian population with zero hate crimes. The Native American population with zero Trump votes have predicted hate crimes that are 0.075 higher than the Asian population with zero hate crimes. The White population with zero Trump votes have predicted hate crimes that are 0.032 higher than the Asian population with zero hate crimes. The SE values did not change after robust standard errors were used.
+With interactions between race/ethnicity and Trump votes, the following interactions were reported. The predicted hate crimes within a population for the Asian population is 0.0333. Hate crimes associated with Trump votes for the Asian population: for every 1-unit increase in hate crimes, predicted Trump votes go up 0.09 for this group. The Black population with zero Trump votes have predicted hate crimes that are 0.043 lower than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Black population is 0.999 lower than the Asian population. The Hispanic population with zero Trump votes have predicted hate crimes that are 0.061 lower than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Hispanic population is 0.48 lower than the Asian population. The Native American population with zero Trump votes have predicted hate crimes that are 0.029 higher than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Native American population is 3.74 lower than the Asian population.The White population with zero Trump votes have predicted hate crimes that are 0.016 lower than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the White population is 0.84 lower than the Asian population. The r^2 value without interaction is 0.23 and with interaction is 0.25 or 25% meaning only 25% of the variation is explained by the regression line. After testing the assumptions, both with and without interaction models failed the assumption tests of linearity, homoskedsaticity, and normality failed. When using robust standard errors, the SE values did not change for interactions either.*</li>
+</ul>
+<p>##4)Bootstrapping</p>
+<pre class="r"><code>fit3 &lt;- lm(hate_crimes_per_100k_splc_c ~ share_vote_trump_c * 
+    raceethnicity, data = fulldata)
+summary(fit3)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = hate_crimes_per_100k_splc_c ~ share_vote_trump_c * 
+##     raceethnicity, data = fulldata)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -0.23999 -0.07822 -0.02213  0.01984  0.87665 
+## 
+## Coefficients:
+##                                                 Estimate Std. Error t value
+## (Intercept)                                      0.03329    0.05944   0.560
+## share_vote_trump_c                               0.09148    0.61147   0.150
+## raceethnicityBlack                              -0.04267    0.06061  -0.704
+## raceethnicityHispanic/Latino                    -0.06117    0.06230  -0.982
+## raceethnicityNative American                     0.02903    0.09049   0.321
+## raceethnicityWhite                              -0.01589    0.06014  -0.264
+## share_vote_trump_c:raceethnicityBlack           -0.99988    0.62197  -1.608
+## share_vote_trump_c:raceethnicityHispanic/Latino -0.47508    0.63702  -0.746
+## share_vote_trump_c:raceethnicityNative American -3.73512    1.33287  -2.802
+## share_vote_trump_c:raceethnicityWhite           -0.84226    0.61859  -1.362
+##                                                 Pr(&gt;|t|)   
+## (Intercept)                                      0.57575   
+## share_vote_trump_c                               0.88114   
+## raceethnicityBlack                               0.48175   
+## raceethnicityHispanic/Latino                     0.32675   
+## raceethnicityNative American                     0.74853   
+## raceethnicityWhite                               0.79172   
+## share_vote_trump_c:raceethnicityBlack            0.10867   
+## share_vote_trump_c:raceethnicityHispanic/Latino  0.45621   
+## share_vote_trump_c:raceethnicityNative American  0.00531 **
+## share_vote_trump_c:raceethnicityWhite            0.17406   
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.1365 on 425 degrees of freedom
+## Multiple R-squared:  0.2546, Adjusted R-squared:  0.2388 
+## F-statistic: 16.13 on 9 and 425 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>resids3 &lt;- fit3$residuals  #save residuals
+fitted &lt;- fit3$fitted.values  #save yhats
+resid_resamp &lt;- replicate(5000, {
+    new_resids &lt;- sample(resids3, replace = TRUE)  #resample resids w/ replacement
+    fulldata$hate_crimes_per_100k_splc_c &lt;- fitted + new_resids  #add new resids to yhats to get new &#39;data&#39;
+    fit &lt;- lm(hate_crimes_per_100k_splc_c ~ share_vote_trump_c * 
+        raceethnicity, data = fulldata)  #refit model
+    coef(fit)  #save coefficient estimates (b0, b1, etc)
+})
+resid_resamp %&gt;% t %&gt;% as.data.frame %&gt;% summarize_all(sd)</code></pre>
+<pre><code>##   (Intercept) share_vote_trump_c raceethnicityBlack
+## 1  0.05760688          0.6002409         0.05872328
+##   raceethnicityHispanic/Latino raceethnicityNative American raceethnicityWhite
+## 1                   0.06016502                   0.08749978         0.05812972
+##   share_vote_trump_c:raceethnicityBlack
+## 1                             0.6101657
+##   share_vote_trump_c:raceethnicityHispanic/Latino
+## 1                                       0.6284081
+##   share_vote_trump_c:raceethnicityNative American
+## 1                                        1.293609
+##   share_vote_trump_c:raceethnicityWhite
+## 1                             0.6078024</code></pre>
+<p><em>With interactions between race/ethnicity and Trump votes, the following interactions were reported using bootstrapping. The predicted hate crimes within a population for the Asian population is 0.059. Hate crimes associated with Trump votes for the Asian population: for every 1-unit increase in hate crimes, predicted Trump votes go up 0.61 for this group. The Black population with zero Trump votes have predicted hate crimes that are 0.06 higher than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Black population is 0.62 higher than the Asian population. The Hispanic population with zero Trump votes have predicted hate crimes that are 0.061 higher than the Asian population with zero hate crimes. This value remained unchanged like that of the original SE values found.Slope of Trump votes on hate crimes for the Hispanic population is 0.63 higher than the Asian population. The Native American population with zero Trump votes have predicted hate crimes that are 0.09 higher than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the Native American population is 1.32 higher than the Asian population.The White population with zero Trump votes have predicted hate crimes that are 0.06 higher than the Asian population with zero hate crimes. Slope of Trump votes on hate crimes for the White population is 0.61 higher than the Asian population. The Hispanic population was the only SE than remained unchanged when only looking at race and hate crimes.</em></p>
+<p>##5)Binary Variable</p>
+<pre class="r"><code>data &lt;- fulldata %&gt;% mutate(y = ifelse(armed == &quot;No&quot;, 1, 0))
+fit4 &lt;- glm(y ~ raceethnicity * share_vote_trump_c, data = data, 
+    family = &quot;binomial&quot;)
+coeftest(fit4)</code></pre>
+<pre><code>## 
+## z test of coefficients:
+## 
+##                                                  Estimate Std. Error z value
+## (Intercept)                                      -0.60278    0.92858 -0.6491
+## raceethnicityBlack                               -0.55024    0.95060 -0.5788
+## raceethnicityHispanic/Latino                     -0.82793    0.99029 -0.8360
+## raceethnicityNative American                     -0.61438    1.59419 -0.3854
+## raceethnicityWhite                               -0.69701    0.94363 -0.7386
+## share_vote_trump_c                               13.36777   12.74758  1.0487
+## raceethnicityBlack:share_vote_trump_c           -12.41105   12.90105 -0.9620
+## raceethnicityHispanic/Latino:share_vote_trump_c -12.47754   13.17960 -0.9467
+## raceethnicityNative American:share_vote_trump_c  -1.83411   30.00579 -0.0611
+## raceethnicityWhite:share_vote_trump_c           -10.24442   12.85994 -0.7966
+##                                                 Pr(&gt;|z|)
+## (Intercept)                                       0.5162
+## raceethnicityBlack                                0.5627
+## raceethnicityHispanic/Latino                      0.4031
+## raceethnicityNative American                      0.7000
+## raceethnicityWhite                                0.4601
+## share_vote_trump_c                                0.2943
+## raceethnicityBlack:share_vote_trump_c             0.3360
+## raceethnicityHispanic/Latino:share_vote_trump_c   0.3438
+## raceethnicityNative American:share_vote_trump_c   0.9513
+## raceethnicityWhite:share_vote_trump_c             0.4257</code></pre>
+<pre class="r"><code>exp(coef(fit4))</code></pre>
+<pre><code>##                                     (Intercept) 
+##                                    5.472902e-01 
+##                              raceethnicityBlack 
+##                                    5.768102e-01 
+##                    raceethnicityHispanic/Latino 
+##                                    4.369530e-01 
+##                    raceethnicityNative American 
+##                                    5.409786e-01 
+##                              raceethnicityWhite 
+##                                    4.980733e-01 
+##                              share_vote_trump_c 
+##                                    6.390706e+05 
+##           raceethnicityBlack:share_vote_trump_c 
+##                                    4.073331e-06 
+## raceethnicityHispanic/Latino:share_vote_trump_c 
+##                                    3.811297e-06 
+## raceethnicityNative American:share_vote_trump_c 
+##                                    1.597555e-01 
+##           raceethnicityWhite:share_vote_trump_c 
+##                                    3.555526e-05</code></pre>
+<pre class="r"><code>probs &lt;- predict(fit4, type = &quot;response&quot;)
+table(predict = as.numeric(probs &gt; 0.5), truth = data$y) %&gt;% 
+    addmargins</code></pre>
+<pre><code>##        truth
+## predict   0   1 Sum
+##     0   336  97 433
+##     1     1   1   2
+##     Sum 337  98 435</code></pre>
+<pre class="r"><code>1/98  #TPR</code></pre>
+<pre><code>## [1] 0.01020408</code></pre>
+<pre class="r"><code>(336 + 1)/435  #accuracy</code></pre>
+<pre><code>## [1] 0.7747126</code></pre>
+<pre class="r"><code>336/337  #TNR</code></pre>
+<pre><code>## [1] 0.9970326</code></pre>
+<pre class="r"><code>1/2  #PPV</code></pre>
+<pre><code>## [1] 0.5</code></pre>
+<pre class="r"><code>data$logit &lt;- predict(fit4, type = &quot;link&quot;)
+data %&gt;% mutate(y = as.factor(y)) %&gt;% ggplot() + geom_density(aes(logit, 
+    fill = y)) + theme(legend.position = c(0.85, 0.85)) + geom_vline(xintercept = 0) + 
+    xlab(&quot;logit (log-odds)&quot;) + geom_rug(aes(logit, color = y)) + 
+    geom_text(x = -5, y = 0.07, label = &quot;TN = 431&quot;) + geom_text(x = -1.75, 
+    y = 0.008, label = &quot;FN = 19&quot;) + geom_text(x = 1, y = 0.006, 
+    label = &quot;FP = 13&quot;) + geom_text(x = 5, y = 0.04, label = &quot;TP = 220&quot;)</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-7-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ROCplot &lt;- ggplot(data) + geom_roc(aes(d = y, m = probs))
+ROCplot</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-7-2.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>calc_auc(ROCplot)</code></pre>
+<pre><code>##   PANEL group       AUC
+## 1     1    -1 0.5756828</code></pre>
+<p><em>When analyzing the odds ratio with interaction between race/ethnicity and the share of the population that voted for Trump, these were the following results. The odds ratio for the Asian population is 5.47e-01. The odds ratio for the Latino population with the Trump interaction is 3.81e-06, and alone is 4.37e-01. The odds ratio for the White population with the Trump interaction is 3.55e-05, and alone is 4.98e-01. The odds ratio for the Black population with the Trump interaction is 4.07e-06, and alone is 5.77e-01. The odds ratio for the Native American population with the Trump interaction is 1.59e-01, and alone is 5.41e-01. The odds ratio for the population that voted for Trump alone is 6.39e05. With the interaction, the population with the highest odds ratio that voted for Trump along with the murder rate in 2015 of different populations is the Native American population while the lowest rate is the Black population. After running the confusion matrix, there was a very low sensitivity rate of 1%, a specificity rate of 99.7%, and a precision of 50%. The accuracy is 77%. With an AUC of 0.58, the curve is bad! </em></p>
+<p>#6) Regression with All Variables</p>
+<pre class="r"><code>fit6 &lt;- glm(y ~ ., data = data, family = &quot;binomial&quot;)
+coeftest(fit6)</code></pre>
+<pre><code>## 
+## z test of coefficients:
+## 
+##                                 Estimate  Std. Error z value Pr(&gt;|z|)
+## (Intercept)                  -2.6566e+01  4.6769e+05  -1e-04   1.0000
+## age                          -8.5218e-14  1.5459e+03   0e+00   1.0000
+## genderMale                    1.0076e-11  9.1781e+04   0e+00   1.0000
+## raceethnicityBlack            4.8915e-11  1.3551e+05   0e+00   1.0000
+## raceethnicityHispanic/Latino  3.2098e-11  1.3898e+05   0e+00   1.0000
+## raceethnicityNative American  3.2771e-11  2.4127e+05   0e+00   1.0000
+## raceethnicityWhite            3.8685e-11  1.3439e+05   0e+00   1.0000
+## stateAL                       1.4793e-10  3.2015e+05   0e+00   1.0000
+## stateAR                      -1.2747e-11  3.5805e+05   0e+00   1.0000
+## stateAZ                      -9.5069e-12  2.9441e+05   0e+00   1.0000
+## stateCA                      -2.0883e-11  2.9576e+05   0e+00   1.0000
+## stateCO                      -1.2194e-11  3.0954e+05   0e+00   1.0000
+## stateCT                      -8.7924e-12  4.7599e+05   0e+00   1.0000
+## stateDC                      -3.4878e-11  4.6505e+05   0e+00   1.0000
+## stateDE                      -1.8399e-11  3.9044e+05   0e+00   1.0000
+## stateFL                      -1.6246e-11  3.0434e+05   0e+00   1.0000
+## stateGA                      -1.5777e-11  3.0677e+05   0e+00   1.0000
+## stateIA                      -8.7226e-12  3.8891e+05   0e+00   1.0000
+## stateID                      -7.7707e-12  3.4480e+05   0e+00   1.0000
+## stateIL                      -2.6628e-11  3.1388e+05   0e+00   1.0000
+## stateIN                      -1.4766e-11  3.2252e+05   0e+00   1.0000
+## stateKS                      -5.3853e-12  3.2298e+05   0e+00   1.0000
+## stateKY                      -1.9816e-11  3.2483e+05   0e+00   1.0000
+## stateLA                      -1.1686e-11  3.1534e+05   0e+00   1.0000
+## stateMA                      -6.5954e-11  3.4483e+05   0e+00   1.0000
+##  [ reached getOption(&quot;max.print&quot;) -- omitted 42 rows ]</code></pre>
+<pre class="r"><code>exp(coef(fit6))</code></pre>
+<pre><code>##                  (Intercept)                          age 
+##                 2.900701e-12                 1.000000e+00 
+##                   genderMale           raceethnicityBlack 
+##                 1.000000e+00                 1.000000e+00 
+## raceethnicityHispanic/Latino raceethnicityNative American 
+##                 1.000000e+00                 1.000000e+00 
+##           raceethnicityWhite                      stateAL 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateAR                      stateAZ 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateCA                      stateCO 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateCT                      stateDC 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateDE                      stateFL 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateGA                      stateIA 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateID                      stateIL 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateIN                      stateKS 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateKY                      stateLA 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateMA                      stateMD 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateME                      stateMI 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateMN                      stateMO 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateMS                      stateMT 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateNC                      stateNE 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateNH                      stateNJ 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateNM                      stateNV 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateNY                      stateOH 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateOK                      stateOR 
+##                 1.000000e+00                 1.000000e+00 
+##                      statePA                      stateSC 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateTN                      stateTX 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateUT                      stateVA 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateWA                      stateWI 
+##                 1.000000e+00                 1.000000e+00 
+##                      stateWV                 causeGunshot 
+##                 1.000000e+00                 1.000000e+00 
+##       causeStruck by vehicle                   causeTaser 
+##                 1.000000e+00                 1.000000e+00 
+##                 armedFirearm                   armedKnife 
+##                 1.000000e+00                 1.000000e+00 
+##                      armedNo      armedNon-lethal firearm 
+##                 1.188486e+23                 1.000000e+00 
+##                   armedOther                 armedVehicle 
+##                 1.000000e+00                 1.000000e+00 
+##                          pop                county_income 
+##                 1.000000e+00                 1.000000e+00 
+##    hate_crimes_per_100k_splc             share_vote_trump 
+##                           NA                           NA 
+##           share_vote_trump_c  hate_crimes_per_100k_splc_c 
+##                           NA                           NA 
+##                        logit 
+##                 1.000000e+00</code></pre>
+<pre class="r"><code>summary(fit6)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = y ~ ., family = &quot;binomial&quot;, data = data)
+## 
+## Deviance Residuals: 
+##        Min          1Q      Median          3Q         Max  
+## -2.409e-06  -2.409e-06  -2.409e-06  -2.409e-06   2.409e-06  
+## 
+## Coefficients: (4 not defined because of singularities)
+##                                Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept)                  -2.657e+01  4.677e+05       0        1
+## age                          -8.522e-14  1.546e+03       0        1
+## genderMale                    1.008e-11  9.178e+04       0        1
+## raceethnicityBlack            4.892e-11  1.355e+05       0        1
+## raceethnicityHispanic/Latino  3.210e-11  1.390e+05       0        1
+## raceethnicityNative American  3.277e-11  2.413e+05       0        1
+## raceethnicityWhite            3.869e-11  1.344e+05       0        1
+## stateAL                       1.479e-10  3.202e+05       0        1
+## stateAR                      -1.275e-11  3.581e+05       0        1
+## stateAZ                      -9.507e-12  2.944e+05       0        1
+## stateCA                      -2.088e-11  2.958e+05       0        1
+## stateCO                      -1.219e-11  3.095e+05       0        1
+## stateCT                      -8.792e-12  4.760e+05       0        1
+## stateDC                      -3.488e-11  4.651e+05       0        1
+## stateDE                      -1.840e-11  3.904e+05       0        1
+## stateFL                      -1.625e-11  3.043e+05       0        1
+## stateGA                      -1.578e-11  3.068e+05       0        1
+## stateIA                      -8.723e-12  3.889e+05       0        1
+## stateID                      -7.771e-12  3.448e+05       0        1
+## stateIL                      -2.663e-11  3.139e+05       0        1
+## stateIN                      -1.477e-11  3.225e+05       0        1
+## stateKS                      -5.385e-12  3.230e+05       0        1
+## stateKY                      -1.982e-11  3.248e+05       0        1
+## stateLA                      -1.169e-11  3.153e+05       0        1
+## stateMA                      -6.595e-11  3.448e+05       0        1
+##  [ reached getOption(&quot;max.print&quot;) -- omitted 42 rows ]
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 4.6416e+02  on 434  degrees of freedom
+## Residual deviance: 2.5237e-09  on 372  degrees of freedom
+## AIC: 126
+## 
+## Number of Fisher Scoring iterations: 25</code></pre>
+<pre class="r"><code>prob &lt;- predict(fit6, type = &quot;response&quot;)
+class_diag &lt;- function(probs, truth) {
+    
+    # CONFUSION MATRIX: CALCULATE ACCURACY, TPR, TNR, PPV
+    tab &lt;- table(factor(probs &gt; 0.5, levels = c(&quot;FALSE&quot;, &quot;TRUE&quot;)), 
+        truth)
+    acc = sum(diag(tab))/sum(tab)
+    sens = tab[2, 2]/colSums(tab)[2]
+    spec = tab[1, 1]/colSums(tab)[1]
+    ppv = tab[2, 2]/rowSums(tab)[2]
+    
+    if (is.numeric(truth) == FALSE &amp; is.logical(truth) == FALSE) 
+        truth &lt;- as.numeric(truth) - 1
+    
+    # CALCULATE EXACT AUC
+    ord &lt;- order(probs, decreasing = TRUE)
+    probs &lt;- probs[ord]
+    truth &lt;- truth[ord]
+    
+    TPR = cumsum(truth)/max(1, sum(truth))
+    FPR = cumsum(!truth)/max(1, sum(!truth))
+    
+    dup &lt;- c(probs[-1] &gt;= probs[-length(probs)], FALSE)
+    TPR &lt;- c(0, TPR[!dup], 1)
+    FPR &lt;- c(0, FPR[!dup], 1)
+    
+    n &lt;- length(TPR)
+    auc &lt;- sum(((TPR[-1] + TPR[-n])/2) * (FPR[-1] - FPR[-n]))
+    
+    data.frame(acc, sens, spec, ppv, auc)
+}
+class_diag(probs, data$y)</code></pre>
+<pre><code>##         acc       sens      spec ppv       auc
+## 1 0.7747126 0.01020408 0.9970326 0.5 0.5756828</code></pre>
+<pre class="r"><code>set.seed(1234)
+k = 10
+data &lt;- data[sample(nrow(data)), ]  #randomly order rows
+folds &lt;- cut(seq(1:nrow(data)), breaks = k, labels = F)  #create folds
+diags &lt;- NULL
+for (i in 1:k) {
+    ## Create training and test sets
+    train &lt;- data[folds != i, ]
+    test &lt;- data[folds == i, ]
+    
+    truth &lt;- test$y  ## Truth labels for fold i
+    
+    ## Train model on training set (all but fold i)
+    fit &lt;- glm(y ~ ., data = data, family = &quot;binomial&quot;)
+    
+    ## Test model on test set (fold i)
+    probs &lt;- predict(fit, newdata = test, type = &quot;response&quot;)
+    
+    ## Get diagnostics for fold i
+    diags &lt;- rbind(diags, class_diag(probs, truth))
+}
+summarize_all(diags, mean)</code></pre>
+<pre><code>##   acc sens spec ppv auc
+## 1   1    1    1   1   1</code></pre>
+<pre class="r"><code>library(glmnet)
+y &lt;- as.matrix(data$y)  #grab response
+x &lt;- model.matrix(y ~ ., data = data)[, -1]  #grab predictors
+x &lt;- scale(x)
+head(x)</code></pre>
+<pre><code>##           age genderMale raceethnicityBlack raceethnicityHispanic/Latino
+## 1 -0.25426723  0.2134668          1.5051434                   -0.4148616
+##   raceethnicityNative American raceethnicityWhite    stateAL     stateAR
+## 1                  -0.09622581         -1.0386789 -0.1367198 -0.08323749
+##      stateAZ    stateCA    stateCO     stateCT     stateDC    stateDE
+## 1 -0.2360019 -0.4336948 -0.1682367 -0.04794633 -0.04794633 -0.0678846
+##      stateFL    stateGA    stateIA     stateID    stateIL    stateIN    stateKS
+## 1 -0.2413709 -0.1887649 -0.0678846 -0.09622581 -0.1608843 -0.1367198 -0.1181265
+##      stateKY    stateLA     stateMA    stateMD     stateME    stateMI
+## 1 -0.1277401 -0.1608843 -0.09622581  6.5117048 -0.04794633 -0.1451833
+##      stateMN    stateMO    stateMS    stateMT    stateNC    stateNE     stateNH
+## 1 -0.1181265 -0.1532166 -0.1181265 -0.0678846 -0.1532166 -0.1077088 -0.04794633
+##      stateNJ    stateNM     stateNV    stateNY    stateOH    stateOK    stateOR
+## 1 -0.1451833 -0.1077088 -0.08323749 -0.1753136 -0.1451833 -0.2305348 -0.1277401
+##      statePA    stateSC    stateTN    stateTX    stateUT    stateVA    stateWA
+## 1 -0.1277401 -0.1451833 -0.1181265 -0.3222137 -0.1077088 -0.1451833 -0.1532166
+##      stateWI    stateWV causeGunshot causeStruck by vehicle causeTaser
+## 1 -0.1077088 -0.0678846    0.3476429             -0.1451833 -0.2413709
+##   armedFirearm armedKnife    armedNo armedNon-lethal firearm armedOther
+## 1    0.9965563 -0.4186548 -0.5386397              -0.1532166 -0.2413709
+##   armedVehicle         pop county_income hate_crimes_per_100k_splc
+## 1   -0.2075241 -0.43870539     1.6272879                 0.7171961
+##   share_vote_trump share_vote_trump_c hate_crimes_per_100k_splc_c       logit
+## 1       -1.2601889         -1.2601889                   0.7171961 -0.05544674
+##  [ reached getOption(&quot;max.print&quot;) -- omitted 5 rows ]</code></pre>
+<pre class="r"><code>cv &lt;- cv.glmnet(x, y, family = &quot;binomial&quot;)
+lasso &lt;- glmnet(x, y, family = &quot;binomial&quot;, lambda = cv$lambda.1se)
+coef(lasso)</code></pre>
+<pre><code>## 67 x 1 sparse Matrix of class &quot;dgCMatrix&quot;
+##                                     s0
+## (Intercept)                  -4.675086
+## age                           .       
+## genderMale                    .       
+## raceethnicityBlack            .       
+## raceethnicityHispanic/Latino  .       
+## raceethnicityNative American  .       
+## raceethnicityWhite            .       
+## stateAL                       .       
+## stateAR                       .       
+## stateAZ                       .       
+## stateCA                       .       
+## stateCO                       .       
+## stateCT                       .       
+## stateDC                       .       
+## stateDE                       .       
+## stateFL                       .       
+## stateGA                       .       
+## stateIA                       .       
+## stateID                       .       
+## stateIL                       .       
+## stateIN                       .       
+## stateKS                       .       
+## stateKY                       .       
+## stateLA                       .       
+## stateMA                       .       
+## stateMD                       .       
+## stateME                       .       
+## stateMI                       .       
+## stateMN                       .       
+## stateMO                       .       
+## stateMS                       .       
+## stateMT                       .       
+## stateNC                       .       
+## stateNE                       .       
+## stateNH                       .       
+## stateNJ                       .       
+## stateNM                       .       
+## stateNV                       .       
+## stateNY                       .       
+## stateOH                       .       
+## stateOK                       .       
+## stateOR                       .       
+## statePA                       .       
+## stateSC                       .       
+## stateTN                       .       
+## stateTX                       .       
+## stateUT                       .       
+## stateVA                       .       
+## stateWA                       .       
+## stateWI                       .       
+## stateWV                       .       
+## causeGunshot                  .       
+## causeStruck by vehicle        .       
+## causeTaser                    .       
+## armedFirearm                  .       
+## armedKnife                    .       
+## armedNo                       6.177001
+## armedNon-lethal firearm       .       
+## armedOther                    .       
+## armedVehicle                  .       
+## pop                           .       
+## county_income                 .       
+## hate_crimes_per_100k_splc     .       
+## share_vote_trump              .       
+## share_vote_trump_c            .       
+## hate_crimes_per_100k_splc_c   .       
+## logit                         .</code></pre>
+<pre class="r"><code>lasso_dat &lt;- data %&gt;% mutate(notarmed = ifelse(armed == &quot;No&quot;, 
+    1, 0))
+
+k = 10
+data &lt;- lasso_dat[sample(nrow(data)), ]  #randomly order rows
+folds &lt;- cut(seq(1:nrow(data)), breaks = k, labels = F)  #create folds
+
+diags &lt;- NULL
+for (i in 1:k) {
+    ## Create training and test sets
+    train &lt;- data[folds != i, ]
+    test &lt;- data[folds == i, ]
+    
+    truth &lt;- test$y  ## Truth labels for fold i
+    
+    ## Train model on training set (all but fold i)
+    fit &lt;- glm(y ~ notarmed, data = lasso_dat, family = &quot;binomial&quot;)
+    
+    ## Test model on test set (fold i)
+    probs &lt;- predict(fit, newdata = test, type = &quot;response&quot;)
+    
+    ## Get diagnostics for fold i
+    diags &lt;- rbind(diags, class_diag(probs, truth))
+}
+summarize_all(diags, mean)</code></pre>
+<pre><code>##   acc sens spec ppv auc
+## 1   1    1    1   1   1</code></pre>
+<p><em>Using all the variables present in the dataset, the accuracy is 0.77, sensitivity is 0.01, specificity is 0.997, precision is 0.5, and AUC is 0.58, which is bad. After running the regression on 10-fold, every value came out to 1, including accuracy, sensitivity, specificity, precision, and AUC. After running lasso, only one variable was a non zero, armedNo with a value of 6.177. </em></p>
+</div>
